@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Backend Roadmap - Gamer Theme</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'VT323', monospace;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: #cbd5e1; /* Tailwind slate-300 */
+            overflow-x: hidden; /* Prevent horizontal scroll from animations */
+        }
+        .font-press-start {
+            font-family: 'Press Start 2P', cursive;
+        }
+        .font-vt323 {
+            font-family: 'VT323', monospace;
+        }
+        .phase {
+            background-color: #1e293b; /* Tailwind slate-800 */
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            border: 2px solid #ec4899; /* Tailwind pink-500 */
+            margin-bottom: 2rem; /* Tailwind mb-8 */
+            padding: 1.5rem; /* Tailwind p-6 */
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.3); /* Pink glow */
+            display: none; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .phase.active {
+            display: block;
+            opacity: 1;
+        }
+        .sprint {
+            background-color: #334155; /* Tailwind slate-700 */
+            border: 1px solid #db2777; /* Tailwind pink-600 */
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            margin-top: 1.5rem; /* Tailwind mt-6 */
+            padding: 1.5rem; /* Tailwind p-6 */
+        }
+        .sprint-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem; /* Tailwind mb-4 */
+        }
+        .sprint-title {
+            font-size: 1.5rem; /* Tailwind text-2xl for VT323 */
+            font-weight: normal; /* VT323 is often bold by default */
+            color: #f472b6; /* Tailwind pink-400 */
+        }
+        .progress-bar-container {
+            width: 120px; /* Increased width */
+            height: 12px; /* Increased height */
+            background-color: #475569; /* Tailwind slate-600 */
+            border-radius: 0.125rem; /* Tailwind rounded-sm for pixel feel */
+            border: 1px solid #ec4899; /* Pink border */
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #22d3ee; /* Tailwind cyan-400 */
+            transition: width 0.3s ease-in-out;
+        }
+        .section-title { /* For "Implementations:" and "Key Tests to Pass for Delivery:" */
+            font-size: 1.25rem; /* Tailwind text-xl for VT323 */
+            font-weight: normal;
+            color: #fda4af; /* Tailwind rose-300 */
+            margin-top: 1rem; /* Tailwind mt-4 */
+            margin-bottom: 0.5rem; /* Tailwind mb-2 */
+        }
+
+        /* Styling for checkable items (both Implementations and Key Tests) */
+        .checkable-item {
+            display: flex;
+            align-items: flex-start; /* Align items to the start for multi-line labels */
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #475569; /* Tailwind border-slate-600 dashed */
+        }
+        .checkable-item:last-child {
+            border-bottom: none;
+        }
+        .checkable-item input[type="checkbox"] {
+            margin-right: 0.75rem;
+            margin-top: 0.25rem; /* Align checkbox with first line of text */
+            width: 1.25rem;
+            height: 1.25rem;
+            min-width: 1.25rem;
+            appearance: none;
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+            /* Default border and background for unchecked state */
+            border: 1px solid #f472b6; /* Default pink border */
+            background-color: #334155; /* Default slate background */
+        }
+        .checkable-item label {
+            color: #e2e8f0; /* Tailwind slate-200 */
+            font-size: 1rem; /* Tailwind text-base for VT323 */
+            line-height: 1.4; /* Adjusted for better readability */
+        }
+        .checkable-item.completed label {
+            text-decoration: line-through;
+            color: #64748b; /* Tailwind slate-500 */
+        }
+
+        /* Specific styling for "Implementations" checkboxes (DONE = Pink X) */
+        .implementation-item input[type="checkbox"]:checked {
+            background-color: #ec4899; /* Pink background when checked */
+            border-color: #ec4899;
+        }
+        .implementation-item input[type="checkbox"]:checked::after {
+            content: 'X';
+            color: #1e293b; /* Darker color for X */
+            font-size: 0.9rem;
+            font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* Specific styling for "Key Tests" checkboxes (PASSED = Green Check) */
+        .key-test-item input[type="checkbox"] {
+            border: 1px solid #34d399; /* Green border for tests */
+        }
+        .key-test-item input[type="checkbox"]:checked {
+            background-color: #10b981; /* Green background when checked (passed) */
+            border-color: #10b981;
+        }
+        .key-test-item input[type="checkbox"]:checked::after {
+            content: '✔'; /* Checkmark for passed tests */
+            color: #ffffff; /* White checkmark */
+            font-size: 1.1rem; /* Slightly larger checkmark */
+            font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'VT323', monospace; /* Consistent font */
+        }
+        .key-test-item.completed label {
+            color: #6ee7b7; /* Lighter green for passed test labels */
+            text-decoration: none; /* No line-through for passed tests, just color change */
+        }
+
+
+        .phase-header {
+            font-size: 1.75rem; /* Tailwind text-xl for Press Start 2P */
+            font-weight: normal;
+            color: #ec4899; /* Tailwind pink-500 */
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 3px dashed #db2777; /* Tailwind pink-600 */
+            text-shadow: 0 0 8px rgba(236, 72, 153, 0.5);
+        }
+        .overall-progress-container {
+            background-color: #1e293b;
+            padding: 1.5rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.4);
+            margin-bottom: 1.5rem;
+            border: 2px solid #ec4899;
+        }
+        .overall-progress-title {
+            font-size: 1.5rem;
+            font-weight: normal;
+            color: #f472b6;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .overall-progress-bar-bg {
+            height: 24px;
+            background-color: #334155;
+            border-radius: 0.125rem;
+            overflow: hidden;
+            border: 1px solid #ec4899;
+        }
+        .overall-progress-bar-fg {
+            height: 100%;
+            background-color: #10b981;
+            transition: width 0.5s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 0.875rem;
+            font-weight: normal;
+        }
+
+        .navigation-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2.5rem;
+        }
+        .nav-button {
+            background-color: #ec4899;
+            color: #1e293b;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 2px 0 #db2777;
+        }
+        .nav-button:hover:not(:disabled) {
+            background-color: #f472b6;
+            box-shadow: 0 2px 0 #ec4899;
+        }
+        .nav-button:active:not(:disabled) {
+            background-color: #db2777;
+            transform: translateY(1px);
+            box-shadow: 0 1px 0 #db2777;
+        }
+        .nav-button:disabled {
+            background-color: #475569;
+            color: #94a3b8;
+            cursor: not-allowed;
+            box-shadow: 0 2px 0 #334155;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 font-vt323">
+
+<div class="max-w-5xl mx-auto">
+    <header class="text-center mb-12">
+        <h1 class="text-5xl font-press-start text-pink-400" style="text-shadow: 0 0 10px #ec4899, 0 0 5px #ec4899;">Backend Roadmap</h1>
+    </header>
+
+    <div id="overallProgressContainer" class="overall-progress-container">
+        <h2 class="overall-progress-title font-vt323">Project XP Bar</h2>
+        <div class="overall-progress-bar-bg">
+            <div id="overallProgressBar" class="overall-progress-bar-fg font-vt323" style="width: 0%;">0%</div>
+        </div>
+    </div>
+
+    <div class="navigation-buttons">
+        <button id="prevPhaseBtn" class="nav-button">Prev Phase</button>
+        <button id="nextPhaseBtn" class="nav-button">Next Phase</button>
+    </div>
+
+    <div id="roadmapContainer">
+    </div>
+</div>
+
+<script>
+    const roadmapData = [
+        // ... (Roadmap data from the previous version, with `technicalSteps` and `keyTests` arrays)
+        {
+            phaseTitle: "Phase 1: Foundation Building",
+            sprints: [
+                {
+                    sprintTitle: "Sprint 1: Project Setup & Core Architecture",
+                    implementations: [ // Renamed from technicalSteps
+                        "Initialize Git repository with a clear branching strategy (e.g., Gitflow).",
+                        "Set up Node.js project with `package.json`, defining scripts for dev, test, lint, start.",
+                        "Configure linter (ESLint) and formatter (Prettier) and integrate into pre-commit hooks if possible.",
+                        "Establish the modular monolith project structure (`src`, `src/modules`, `src/config`, `src/middleware`, `src/utils`, `tests`) as per `project-structure.md`.",
+                        "Create `Dockerfile` and `docker-compose.yml` for local development (Node.js app, MongoDB instance).",
+                        "Write initial `README.md`, development standards, and setup guide.",
+                        "Implement a basic Express.js server (`src/app.js`, `src/server.js`) with a health check endpoint (`/health`).",
+                        "Define core module boundaries and initial inter-module communication patterns (direct service calls, placeholders for future event bus).",
+                        "Design JWT authentication strategy: token structure, generation, verification, expiry, refresh token mechanism, and secure client-side storage considerations.",
+                        "Set up `.env` file system for local environment variables (`.env.example` committed, `.env` gitignored).",
+                        "Establish a strict policy against committing any secrets. Document how secrets will be handled in staging/production later (placeholder for tools like AWS Secrets Manager, HashiCorp Vault, or environment variables in CI/CD).",
+                        "Implement a logging library (e.g., Winston, Pino) for structured JSON logs from the start. Ensure all logs include a timestamp, log level, and message. Implement a request tracer ID for all incoming requests and include it in all related logs.",
+                        "Implement centralized error handling middleware (as per `implementation-guidelines.md`). Define initial custom error classes (`AppError`, `ValidationError`, etc.).",
+                        "Basic health check endpoint. Think about what 1-2 critical metrics could be logged for future monitoring (e.g., error count).",
+                        "Choose and set up a database migration tool (e.g., `migrate-mongo`) or establish a versioned script-based migration process. Create an initial (empty) migration.",
+                        "Set up testing frameworks (Mocha, Chai, Sinon). Write initial setup tests and tests for the health check endpoint and basic error handling. Focus on testing error responses.",
+                        "Configure GitHub Actions (`.github/workflows/ci.yml`) for linting, running tests, and potentially building a Docker image on push/PR to `develop` and `main`.",
+                        "During initial data model discussions (even if full models come later), start thinking about data minimization for any user-related information."
+                    ],
+                    keyTests: [
+                        "CI/CD pipeline successfully completes (linting, placeholder tests pass).",
+                        "Local development environment (Dockerized) builds and the application starts correctly.",
+                        "`/health` endpoint returns `200 OK` with expected status information.",
+                        "Structured logging (e.g., JSON with request ID) is implemented and visible for basic requests.",
+                        "Basic error handling middleware correctly formats a known type of error (e.g., 404 for undefined route) into the standard JSON error response.",
+                        "Database migration tool can connect to the database and execute an initial (even if empty) migration successfully.",
+                        "Project adheres to configured ESLint and Prettier standards."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 2: User Management Foundations",
+                    implementations: [
+                        "Define the `User` schema in MongoDB (`database-models.md`) using Mongoose. Include fields for email, username, hashed password (bcrypt), displayName, roles (`user`, `admin`).",
+                        "Ensure only necessary personal data is captured. Document the purpose of each piece of PII.",
+                        "Registration endpoint (`/api/auth/register`): Input validation (Joi or similar as per `implementation-guidelines.md`), Password hashing using bcrypt, Save user to DB, Generate JWT and refresh token.",
+                        "Login endpoint (`/api/auth/login`): Input validation, Verify credentials, compare hashed password, Generate JWT and refresh token.",
+                        "If sending welcome emails, securely manage email service credentials.",
+                        "Implement middleware to verify JWT on protected routes, attach `req.user`.",
+                        "Basic CRUD: Get current user profile (`/api/users/me`); Update current user profile (`/api/users/me` - PATCH, validating updatable fields).",
+                        "Password Reset Functionality: Request endpoint (`/api/auth/reset-password`): Generate unique, time-limited token (store securely, e.g., hashed in DB with expiry). (Conceptual email sending for now). Confirmation endpoint (`/api/auth/reset-password/confirm`): Verify token, update password.",
+                        "Log user registration, login, logout, and password reset attempts (excluding sensitive data like passwords). Ensure user IDs are logged for authenticated actions.",
+                        "Implement specific error responses for auth failures (invalid credentials, user exists, etc.).",
+                        "Unit tests for `AuthService`, `UserService`: registration success/failures (duplicate email/username), login success/failure, password hashing, token generation/validation, profile updates.",
+                        "Integration tests for API endpoints. Test JWT protection.",
+                        "Update `api-specs.md` for all new endpoints."
+                    ],
+                    keyTests: [
+                        "Unit Tests: `AuthService` (password hashing, token generation logic), `UserService` (profile data transformation/validation logic).",
+                        "API/Integration Tests: Successful user registration with valid data; appropriate error for duplicate email/username; validation errors for invalid input.",
+                        "Successful user login with correct credentials; 401/400 for incorrect credentials.",
+                        "JWT is returned on successful registration/login.",
+                        "Protected user profile endpoint (`/api/users/me`) is accessible with a valid JWT and returns correct user data.",
+                        "Protected user profile endpoint is inaccessible without JWT or with an invalid/expired JWT (returns 401).",
+                        "User can update their own profile (displayName, etc.); validation errors for invalid updates.",
+                        "Password reset request endpoint can be called (mock email sending); password reset confirmation endpoint successfully changes password with a valid token and fails with an invalid one.",
+                        "All API endpoints return responses in the standard success/error JSON format.",
+                        "Passwords are confirmed to be stored hashed (bcrypt) in the database."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 3: Game Data Integration",
+                    implementations: [
+                        "Define `Game` schema (`database-models.md`) with fields like name, slug, description, coverImage, genres, platforms, releaseDate, external IDs.",
+                        "Develop integration with an external game API (IGDB/RAWG).",
+                        "Securely store external API keys.",
+                        "Implement game search/filtering API endpoints: List games (`/api/games`) with pagination, filtering; Get game details (`/api/games/{gameId}`).",
+                        "Implement a background job (e.g., using `node-cron` for simplicity initially, or consider BullMQ if Redis is planned soon) for periodic game data updates from the external API.",
+                        "Robustly handle failures from the external API during sync (retries, circuit breaker pattern consideration).",
+                        "Log start/end of sync jobs, number of games updated/added, any errors during sync. Monitor the health and performance of this job.",
+                        "Implement a caching layer (in-memory with `node-cache` or Redis if available) for game data to reduce DB load and external API calls. Cache popular games or recently accessed game details.",
+                        "Unit tests for `GameService`, mocking external API calls. Test caching logic. Test background job logic (can it be triggered and run a cycle?).",
+                        "Update `api-specs.md`."
+                    ],
+                    keyTests: [
+                        "Unit Tests: `GameService` (fetching, searching, filtering logic; interaction with mocked external game API; caching logic verification - hit, miss, set, invalidate).",
+                        "API/Integration Tests: `/api/games` endpoint returns a list of games with correct pagination and filtering (by platform, genre, search query). `/api/games/{gameId}` endpoint returns detailed information for a specific game.",
+                        "Background Job Test: The game data sync job can be manually triggered (or its core logic tested as a unit), successfully fetches data (from a mock external API), and correctly updates/inserts game data into the database. Logs indicate job success/failure and records processed.",
+                        "Caching for game data is functional: subsequent identical requests for game data are served faster and potentially without hitting the DB/external API (verify via logs or specific test setup).",
+                        "Secure storage and usage of external API keys."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 4: Profile Enhancement & Admin Foundations",
+                    implementations: [
+                        "Extend `User` schema: `gamingPreferences` (preferredGames, gameWeights, competitiveness, etc.), `gameProfiles` (inGameName, rank per game).",
+                        "Implement APIs in `UserController` to update these new sections (`/api/users/me/preferences`, `/api/users/me/game-profiles`).",
+                        "Consider which of these new profile fields should have visibility settings.",
+                        "Implement RBAC middleware. Check `req.user.role` for admin-only routes.",
+                        "Create `admin` module with `AdminController` and `AdminService`.",
+                        "Admin User Management: API to list users (`/api/admin/users`) with basic filtering and pagination. API to view a specific user's full details. API to update a user's status (e.g., activate, suspend, ban account).",
+                        "All admin actions must be securely logged with admin user ID, target user ID, action taken, and timestamp (audit trail).",
+                        "Define `Report` schema: reporterId, reportedId, reason, reportType, status, adminNotes.",
+                        "API for users to submit reports. Admin APIs to list reports, view report details, and update report status.",
+                        "Ensure admin APIs provide enough information for an admin to understand and act on a report.",
+                        "Define `Friendship` schema (`database-models.md`) with user1Id, user2Id, status ('pending', 'accepted', 'blocked', 'declined').",
+                        "Implement backend logic for sending a friend request (creates a 'pending' friendship). Full workflow in Sprint 10.",
+                        "Ensure admin endpoints are rigorously protected by RBAC and all inputs are validated.",
+                        "Unit/integration tests for new profile features. Thorough tests for admin functionalities, especially RBAC protection and audit logging of admin actions. Test user reporting submission and admin report management APIs.",
+                        "Update for all new user and admin endpoints."
+                    ],
+                    keyTests: [
+                        "Unit Tests: Logic for updating extended user profiles; RBAC checking logic.",
+                        "API/Integration Tests (User Profile): Users can successfully update their gaming preferences and game profiles via respective API endpoints. Input validation for preference and game profile data.",
+                        "API/Integration Tests (Admin): Admin APIs (`/api/admin/users` for list/view, `/api/admin/users/{userId}/status` for status update) are accessible only by users with 'admin' role (RBAC enforced - 403 for non-admins, 401 for unauthenticated). Admin users can successfully list users, view user details, and change a user's account status.",
+                        "Users can submit a report via the API. Admins can list/view submitted reports.",
+                        "Friendship: Users can send a friend request; a 'pending' friendship record is created.",
+                        "Audit logs for admin actions (e.g., changing user status) are created correctly."
+                    ]
+                }
+            ]
+        },
+        {
+            phaseTitle: "Phase 2: Core Matchmaking System",
+            sprints: [
+                {
+                    sprintTitle: "Sprint 5: Matchmaking Algorithm Foundation",
+                    implementations: [
+                        "Define `MatchRequest` schema: userId, status, criteria (games with weights, gameMode, groupSize, region/language/skill preferences), preselectedUsers, timestamps.",
+                        "Define `PlayerSkill/Rank` data structures (likely within `User.gameProfiles`).",
+                        "APIs for users to submit (`/api/matchmaking` POST) and cancel (`/api/matchmaking/{requestId}` DELETE) matchmaking requests.",
+                        "Consider if submitting a matchmaking request needs to be idempotent (e.g., if a user quickly retries, don't create two identical active requests).",
+                        "Focus on core criteria: game selection (primary game), game mode, region.",
+                        "Simple skill matching if `gameProfiles.rank` is available.",
+                        "Implement `calculateCompatibilityScore` (basic version) from `matchmaking-algorithm.md`.",
+                        "Implement an in-memory matchmaking queue (or Redis lists if prepared). Structure queues based on game, mode, region as per `matchmaking-algorithm.md`.",
+                        "Define `MatchHistory` schema. Implement basic tracking when a match is formed by the algorithm (even if lobbies aren't created yet).",
+                        "Develop scripts or a simple framework to feed sample `MatchRequest` data to the algorithm and observe outputs.",
+                        "Test with various scenarios: no users, few users, many users, specific preference clashes.",
+                        "Log new match requests, cancellations. Log algorithm processing cycles: number of requests processed, criteria used, potential matches found (or why none were found). Log matchmaking queue lengths periodically.",
+                        "Error Handling: For matchmaking request submissions and algorithm processing.",
+                        "Update for new matchmaking endpoints."
+                    ],
+                    keyTests: [
+                        "Unit Tests: Core logic of `MatchAlgorithmService` (e.g., compatibility scoring for various criteria combinations, basic match formation given a small set of requests). Test queue management (add/remove/peek requests).",
+                        "API/Integration Tests: Users can submit a matchmaking request (`/api/matchmaking`) with valid criteria; request is stored correctly with 'searching' status. Users can cancel their active matchmaking request (`/api/matchmaking/{requestId}`); request status is updated to 'cancelled'. Invalid matchmaking criteria are rejected with appropriate validation errors.",
+                        "Algorithm Simulation: Using the validation framework with sample data: Verify that users with highly compatible primary criteria (game, mode, region) are matched. If skill data is available, verify it's being considered at a basic level. A `MatchHistory` record is created (can be basic at this stage) when the algorithm forms a match.",
+                        "Logging for new match requests, cancellations, and basic algorithm processing steps is present."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 6: Real-time Communication",
+                    implementations: [
+                        "Integrate Socket.IO into the Express server, managed by `SocketManager` (as per `real-time-communication.md`).",
+                        "Implement JWT-based authentication for Socket.IO connections.",
+                        "Track active sockets per user (`userSockets` Map: userId -> Set<socketId>). Handle multiple connections from the same user.",
+                        "On connect: Mark user 'online', join user-specific room (e.g., `user:${userId}`).",
+                        "On disconnect: Update user status if no other active connections.",
+                        "Emit `user:status` events to relevant clients (e.g., friends, if friend system is more developed) when status changes.",
+                        "Client event `matchmaking:subscribe` { requestId }. Server joins socket to `match:${requestId}` room.",
+                        "Server emits `matchmaking:status` events (status, searchTime, potentialMatches, estimatedTime) to the `match:${requestId}` room or user-specific room.",
+                        "Formalize event names and payload structures in `real-time-communication.md`.",
+                        "Log socket connection/authentication success/failure, disconnections. Log key events emitted and received (with sanitized data). Monitor active Socket.IO connection count.",
+                        "Error Handling: For socket authentication, event handling, and emissions. What happens if an event fails to send?",
+                        "Develop/use utilities (`socket.io-client` in tests) for WebSocket functionality. Test connection, auth, event emission/reception for matchmaking status. Test presence updates.",
+                        "Make Socket.IO settings (e.g., ping timeouts, CORS origins) configurable."
+                    ],
+                    keyTests: [
+                        "Connection & Auth: Client successfully connects to Socket.IO with a valid JWT; connection is rejected with an invalid/missing JWT.",
+                        "User Presence: When a client connects, their status is updated to 'online' (verify internally, e.g., in `userSockets` map or DB). If implemented, `user:status` events are emitted to relevant clients. When a client disconnects (and it's their last connection), their status is updated to 'offline'.",
+                        "Matchmaking Status Updates: Client can emit `matchmaking:subscribe` with a `requestId`. Server correctly joins the client's socket to the appropriate room for that request. When matchmaking logic (can be mocked for this test) processes a request, the server emits `matchmaking:status` events to the subscribed client with correct payload.",
+                        "Socket.IO event handlers deal with malformed payloads gracefully.",
+                        "Logging for socket connections, disconnections, and key events is implemented."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 7: Lobby System",
+                    implementations: [
+                        "Define `Lobby` schema: name, status (forming, ready, active, closed), game details, members (userId, status, isHost, readyStatus), capacity, chat settings, autoMessage, timestamps.",
+                        "Define `Chat` schema for lobby chat: chatType ('lobby'), participants, lobbyId, messages array (or separate Message collection).",
+                        "`MatchmakingService` calls `LobbyService.createLobby()` upon finding a match.",
+                        "Ensure lobby creation from a match event is idempotent.",
+                        "Implement lobby state machine (forming -> ready -> active -> closed) logic within `LobbyService`.",
+                        "APIs for joining (`/api/lobbies/{lobbyId}/join` - may be automatic post-match) and leaving (`/api/lobbies/{lobbyId}/leave`).",
+                        "Socket.IO events for real-time updates: `lobby:update`, `lobby:member:joined`, `lobby:member:left`, `lobby:member:ready`.",
+                        "\"Ready\" functionality: API (`/api/lobbies/{lobbyId}/ready`) and socket event (`lobby:member:ready`). `LobbyService` checks if all members are ready to transition lobby state.",
+                        "`ChatService` integration: create a chat room when a lobby is created.",
+                        "Socket.IO events for sending/receiving lobby chat messages (`chat:message`, `chat:typing` as per `real-time-communication.md`). Store messages.",
+                        "Implement system for predefined lobby messages.",
+                        "Log lobby creation, member joins/leaves, status changes, chat messages (sanitized). Audit trail of important lobby events.",
+                        "Error Handling: For lobby creation, member management, state transitions.",
+                        "Unit/integration tests for lobby lifecycle, member actions, chat functionality. Test concurrent operations.",
+                        "Update relevant documents."
+                    ],
+                    keyTests: [
+                        "Unit Tests: `LobbyService` state machine logic; member management logic.",
+                        "Integration/API Tests: Successful lobby creation when matchmaking (mocked) finds a match. Users (lobby members) can set their ready status via API. Users can leave a lobby via API.",
+                        "Socket.IO Tests: Clients receive `lobby:update` events. Clients receive `lobby:member:joined`, `lobby:member:left`, `lobby:member:ready` events. Basic lobby chat: messages sent via `chat:message` socket event are received by other connected lobby members; messages are persisted.",
+                        "Test \"all members ready\" condition correctly transitions lobby state.",
+                        "Idempotency test for lobby creation from a match event."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 8: Notification System",
+                    implementations: [
+                        "Define `Notification` schema: userId, type, title, message, data, status, deliveryChannels, deliveryStatus.",
+                        "`NotificationService.createNotification()`: Core logic to create and dispatch notifications.",
+                        "APIs for users: get notifications, mark as read/all read, get count.",
+                        "Extend `User` schema for `notificationSettings`. API to update these settings. `NotificationService` must check these preferences.",
+                        "In-app: `NotificationService` uses `SocketManager` to send `notification:new` and `notification:count` events.",
+                        "Push Notifications (Firebase/FCM): API to register/unregister device tokens, store in `User.deviceTokens`. `NotificationService` integrates with FCM SDK. Sending push notifications should be offloaded to a job queue. Securely store FCM server key.",
+                        "Email Notifications (Basic): Integrate an email service. `NotificationService` to send emails. Email sending should also be a background job. Consider email deliverability and bounce handling.",
+                        "Integrate `NotificationService.createNotification()` calls in relevant services (Matchmaking, Friend, Lobby, Chat).",
+                        "Update `deliveryStatus` in `Notification` model.",
+                        "Log notification creation, targeted delivery channels, and delivery success/failure for each channel.",
+                        "Error Handling: For failures in sending notifications via any channel.",
+                        "Ensure notification content is appropriate and preferences are strictly adhered to.",
+                        "Mock external push/email services. Test notification creation, preference checks, and in-app delivery via sockets.",
+                        "Update API & WebSocket Documentation."
+                    ],
+                    keyTests: [
+                        "Unit Tests: `NotificationService` logic for checking user preferences before sending; dispatch logic for different channels (mocking external services).",
+                        "API/Integration Tests: Users can retrieve their notifications, mark as read, get unread count, update notification preferences.",
+                        "In-App Notification Test (Socket.IO): When a notification is created and user has in-app notifications enabled, they receive `notification:new` and `notification:count` events.",
+                        "Push/Email Channel Tests (Mocked Senders): Verify `NotificationService` *attempts* to send a push/email if user has it enabled.",
+                        "Trigger Tests: When a key event occurs, a corresponding `Notification` document is created.",
+                        "Background jobs for sending push/email notifications are triggered and process items from a queue.",
+                        "`Notification.deliveryStatus` is updated correctly after attempting delivery."
+                    ]
+                }
+            ]
+        },
+        {
+            phaseTitle: "Phase 3: Feature Enrichment",
+            sprints: [
+                {
+                    sprintTitle: "Sprint 9: Advanced Matchmaking Features",
+                    implementations: [
+                        "Multi-game matching: Modify algorithm to consider `MatchRequest.criteria.games` (array with weights). `calculateGameMatchScore` needs to use these weights.",
+                        "Tiered matching (fallbacks): Formalize and implement criteria relaxation strategy (`relaxCriteria` function in `MatchmakingService`). `MatchRequest` needs `relaxationLevel` and `relaxationTimestamp`. Periodically check and relax criteria for long-waiting requests.",
+                        "Region/Language matching: Implement `calculateRegionMatchScore` and `calculateLanguageMatchScore` thoroughly, using `User.preferences` and `MatchRequest.criteria`.",
+                        "Handle `MatchRequest.criteria.scheduledTime`. `MatchmakingService` needs a separate queue/logic for these, triggering matching closer to `scheduledTime`.",
+                        "Utilize `MatchRequest.preselectedUsers`. Algorithm must try to keep these groups intact. Implement `groupPreselectedUsers` logic.",
+                        "API to add friends to an active matchmaking request (`/api/matchmaking/{requestId}/friends`).",
+                        "Develop more complex test data for the matchmaking algorithm. Profile the matchmaking process under simulated load. Optimize database queries and algorithmic complexity.",
+                        "Log detailed metrics about matchmaking rounds: number of users processed, average compatibility scores, time taken, relaxation levels reached.",
+                        "Review \"add friends to matchmaking\" and other update operations for idempotency.",
+                        "Create specific test cases for multi-game, tiered matching, scheduled matching, and group matchmaking scenarios.",
+                        "Update any changes to matchmaking request/response."
+                    ],
+                    keyTests: [
+                        "Algorithm Validation (Expanded Scenarios): Multi-game, Tiered Matching/Relaxation, Region/Language, Planned Matchmaking, Pre-made Group.",
+                        "API Tests: `/api/matchmaking/{requestId}/friends` endpoint successfully adds friends to an ongoing matchmaking request.",
+                        "Performance of the advanced algorithm with more complex data sets is within acceptable limits for this stage.",
+                        "Logging shows details of criteria relaxation and weighted considerations."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 10: Social Features Enhancement",
+                    implementations: [
+                        "Implement APIs: send request, list pending requests, accept/reject, remove friend.",
+                        "Update `Friendship` status. Trigger notifications for friend requests and acceptances.",
+                        "Sending a friend request or blocking a user should ideally be idempotent.",
+                        "API to get user's friends.",
+                        "API to block a user (updates `Friendship` to 'blocked'). API to unblock. API to get blocked users.",
+                        "Blocked users should not appear in matchmaking results for each other, nor be able to send messages/friend requests.",
+                        "Enable creation of 'direct' type chats. API to get/create direct chat with a user. API to list all user's chats. Socket.IO events for direct messages.",
+                        "Define `UserActivity` schema. Implement `UserActivityService.logActivity()` called from various services.",
+                        "Ensure activity tracking is disclosed and, if necessary, configurable by the user.",
+                        "Add `karmaPoints` to `User` schema. API for users to give karma post-match/interaction. `KarmaService` to handle karma updates and prevent abuse.",
+                        "Admins may need to review/mediate reported interactions or karma abuse. Consider if any specific admin APIs are needed here.",
+                        "Test all friend operations, blocking logic, DM functionality, activity logging, and karma updates.",
+                        "Update API & WebSocket Documentation."
+                    ],
+                    keyTests: [
+                        "API/Integration Tests (Friends): Send request, accept/reject, remove friend. Notifications sent.",
+                        "API/Integration Tests (Blocking): Block/unblock user. Blocked users cannot interact.",
+                        "API/Integration Tests (Direct Messaging): Initiate/retrieve direct chat. Messages sent/received and persisted.",
+                        "User Activity Logging: Key social actions are correctly logged.",
+                        "Karma System: Users can submit karma; target user's karma points are updated; basic abuse prevention is in place.",
+                        "Test that appropriate notifications are triggered for friend requests/acceptances."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 11: Rich Media & Content",
+                    implementations: [
+                        "API endpoint for profile image upload. API endpoint for chat media upload. Use `multer`.",
+                        "Rigorous file type validation, size limits. Consider malware scanning.",
+                        "Integrate SDK for chosen cloud storage. `StorageService` to handle uploads, deletions. Store URLs/keys in `User.profileImage` or `Message.mediaUrl`.",
+                        "Securely store cloud storage credentials.",
+                        "For image uploads (avatars), use a library like `sharp` for server-side resizing and basic optimization. This should be done asynchronously.",
+                        "Backend: Ensure `Message.content` can store UTF-8 emojis. `Message.contentType` to support 'emoji', 'gif'.",
+                        "When media is uploaded, publish an event that a separate moderation service can subscribe to. Update media records with a moderation status. Only show approved media.",
+                        "Admins need a way to review media flagged by hooks or reports, and approve/reject/delete it.",
+                        "Configure cloud storage to serve files via a CDN. Ensure generated URLs point to CDN.",
+                        "Log media uploads, processing job status.",
+                        "Test file uploads, storage integration, basic processing. Test moderation hooks.",
+                        "Update API Documentation."
+                    ],
+                    keyTests: [
+                        "API/Integration Tests (Uploads): Users can successfully upload valid profile images; `User.profileImage` is updated. Users can successfully upload valid media files to chat; `Message.mediaUrl` is populated. Uploads of invalid file types or oversized files are rejected.",
+                        "Storage Integration: Verify that uploaded files are correctly stored in cloud storage.",
+                        "Background Job Tests (Media Processing): Image resizing job processes newly uploaded images.",
+                        "Chat: Messages containing emojis and valid GIF URLs are stored and can be retrieved.",
+                        "Content Moderation Hooks: An event is emitted when new media is successfully uploaded.",
+                        "(If CDN configured) Verify that URLs served for media point to the CDN."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 12: Analytics & Insights Foundation",
+                    implementations: [
+                        "Solidify `UserActivity` logging or introduce a dedicated `AnalyticsEvent` collection. Define a clear schema for events.",
+                        "Ensure services are consistently emitting these events for key actions.",
+                        "Design schemas for pre-aggregated data (DAU, MAU, popular games, matchmaking success rates, average wait times). Implement background jobs to calculate and store these aggregates periodically.",
+                        "Create secure admin APIs to fetch these aggregated metrics for an internal dashboard.",
+                        "Define and track: session duration, feature usage counts.",
+                        "Log and aggregate: avg wait times, match completion rates, distribution of relaxation levels reached before matching.",
+                        "Integrate with APM tools if available, or ensure logs are detailed enough for performance analysis.",
+                        "Ensure logs are structured for easy parsing by analytics tools or scripts.",
+                        "Ensure all analytics data collection is compliant with privacy policies. Anonymize or pseudonymize data used for general platform statistics where individual user identification is not necessary.",
+                        "Test event emission, background aggregation jobs, and accuracy of admin stat APIs.",
+                        "Document admin stats APIs."
+                    ],
+                    keyTests: [
+                        "Event Tracking: Key business events are correctly emitted and stored.",
+                        "Aggregation Job Tests: Background jobs that calculate daily/weekly aggregates run correctly and produce accurate data.",
+                        "Admin Dashboard API Tests: Admin-only APIs for fetching key metrics return correct aggregated data and are properly secured.",
+                        "Verify that metrics for user engagement and matchmaking effectiveness are being collected or can be derived.",
+                        "If anonymization/pseudonymization is implemented for public stats, verify it's working."
+                    ]
+                }
+            ]
+        },
+        {
+            phaseTitle: "Phase 4: Monetization & Advanced Features",
+            sprints: [
+                {
+                    sprintTitle: "Sprint 13: Shop System Foundation",
+                    implementations: [
+                        "`ShopItem` schema: type, name, description, imageUrl, price {amount, currency ('virtual')}, rarity, availability. `UserInventory` schema: userId, items. Add `virtualCurrencyBalance` to `User` schema.",
+                        "APIs for Browse/filtering shop items. API to get user's inventory.",
+                        "API to purchase an item using virtual currency. `ShopService` to: Verify item, Check balance, Deduct currency, Add item to `UserInventory`. Ensure purchasing an item is idempotent.",
+                        "APIs to equip/unequip items. `InventoryService` updates `UserInventory`. `UserService` or `ProfileService` logic to reflect equipped items on user profile.",
+                        "Backend APIs/tools for admins to: CRUD shop items. View/manage user virtual currency balances. View/manage user inventories.",
+                        "Log all shop transactions, inventory changes, virtual currency balance updates.",
+                        "Test item creation, listing, purchase, inventory updates, equipping/unequipping.",
+                        "Update API Documentation."
+                    ],
+                    keyTests: [
+                        "API/Integration Tests (Shop & Inventory): Users can browse/filter shop items. Users can view their inventory. Users can purchase items using virtual currency (succeeds/fails correctly). Users can equip/unequip items.",
+                        "Admin APIs: Admins can CRUD shop items; admins can view/adjust user virtual currency and inventories.",
+                        "Idempotency: Purchasing an item with virtual currency is idempotent.",
+                        "Audit logs for all shop transactions, inventory changes, and virtual currency balance adjustments are created."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 14: Payment Integration",
+                    implementations: [
+                        "Choose provider (Stripe, etc.). Integrate their SDK. Securely store API keys.",
+                        "API endpoint to create payment intent. Backend communicates with provider, returns client secret/ID to frontend.",
+                        "Frontend uses client secret to complete payment with provider.",
+                        "Secure webhook endpoint to receive payment success/failure/dispute notifications. Process webhooks idempotently. Verify webhook signatures.",
+                        "`Transaction` schema: userId, itemId/packId, amount, currency ('real'), paymentProviderTransactionId, status, timestamps.",
+                        "Upon successful payment confirmation, update user's virtual currency or grant item to inventory.",
+                        "API for users to view their real-money transaction history.",
+                        "Adhere to PCI DSS compliance standards. Never store raw credit card details. Protect against fraud.",
+                        "Admin-initiated refunds. Backend API to trigger refund via payment provider API. Update `Transaction` status. Admin interface to view transactions and manage refunds.",
+                        "Understand tax implications, consumer rights for digital purchases.",
+                        "Detailed, secure audit trail for all payment intents, transactions, webhook events, and fulfillment actions.",
+                        "Requires careful setup. Use provider's test modes and mock card numbers. Test full lifecycle. Test failure scenarios.",
+                        "Update API Documentation."
+                    ],
+                    keyTests: [
+                        "API/Integration Tests: User can initiate a purchase for a real-money item/virtual currency pack; backend successfully creates a payment intent. Webhook Handling: Successful payment webhook updates transaction, grants entitlement (idempotent). Failed payment webhook updates transaction. Dispute/refund webhook updates transaction.",
+                        "Users can view their real-money transaction history.",
+                        "Security: Webhook endpoint is secure and validates incoming requests. No sensitive cardholder data is logged or stored.",
+                        "Admin APIs: Admins can view transaction details. Admin-initiated refund process updates transaction status.",
+                        "Full end-to-end payment flow works correctly in the test environment.",
+                        "Critical payment operations are logged for auditing."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 15: Dashboard & Exploration Features",
+                    implementations: [
+                        "`FeedItem` schema. `FeedService` to generate feed items based on `UserActivity`. Fan-out approach for friend activities.",
+                        "API for users to retrieve their personalized feed with pagination.",
+                        "Reuse external game API or find news-specific APIs. Background job to fetch and cache news for games users play/follow. API for users to get relevant game news.",
+                        "Leverage aggregated analytics from Sprint 12. APIs to show interesting, anonymized platform stats.",
+                        "\"Games your friends play that you don't.\" \"Users with similar game preferences.\" Requires querying user profiles, friend lists, game data.",
+                        "Endpoints to find popular/trending games, public lobbies, maybe user-generated content.",
+                        "Feeds and dashboard data can be read-heavy. Implement aggressive caching. Optimize database queries.",
+                        "Monitor performance of feed generation and API response times for dashboard endpoints.",
+                        "Test feed generation logic, recommendation accuracy, API performance.",
+                        "Update API Documentation."
+                    ],
+                    keyTests: [
+                        "API/Integration Tests: Personalized activity feed API returns relevant, paginated items. Game news API returns current news. Platform statistics APIs return accurate public data. Basic personalized recommendations API returns sensible suggestions.",
+                        "Performance: APIs for feeds and dashboards respond within acceptable time limits, especially with caching enabled.",
+                        "Test that feed generation logic correctly sources data from `UserActivity` and other relevant events."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 16: Advanced Security & Compliance",
+                    implementations: [
+                        "Data Mapping: Review all PII stored, its purpose, legal basis for processing, and retention period.",
+                        "Right to Access: API and admin tool for users/admins to export all user data in a common format.",
+                        "Right to Erasure: API and admin tool for users/admins to request/perform account deletion. Handle content and references. Ensure data is removed from backups or anonymized. Log deletion requests.",
+                        "Consent Management: Implement mechanisms to record and withdraw consent if applicable.",
+                        "Review current rate limits. Implement more granular limits for sensitive operations. Use a persistent store like Redis for distributed rate limiting.",
+                        "Conduct internal code review focused on security. Use tools like `npm audit --recursive`, Snyk, or ESLint security plugins. Address identified vulnerabilities.",
+                        "Ensure backend logic aligns with the stated privacy policy.",
+                        "Verify MongoDB encryption at rest is active. Consider application-level encryption for specific, highly sensitive fields if necessary.",
+                        "Prepare documentation and environment for a future external penetration test.",
+                        "Maintain internal documentation of data flows, PII locations, security measures, and GDPR compliance efforts.",
+                        "The data export and deletion functionalities are critical admin tools. Ensure they are robust, auditable, and tested.",
+                        "Log all data access requests, export actions, and deletion actions for audit purposes.",
+                        "Thoroughly test data export and deletion. Simulate data subject requests. Test advanced rate-limiting.",
+                        "Document any user-facing APIs for data rights."
+                    ],
+                    keyTests: [
+                        "GDPR Functionality Tests: Data Access/Export: Users can request and receive an export of their personal data. Data Erasure: Users can request account/data deletion; PII is verifiably removed/anonymized.",
+                        "Advanced Rate Limiting: Stricter rate limits on sensitive operations are correctly enforced.",
+                        "Verify that any vulnerabilities identified during internal audits or by security scanning tools have been addressed and re-tested.",
+                        "Test that privacy policy enforcement mechanisms function correctly.",
+                        "Audit logs for all data access requests, export actions, and deletion actions are comprehensive and accurate."
+                    ]
+                }
+            ]
+        },
+        {
+            phaseTitle: "Phase 5: Optimization & Scaling Preparation",
+            sprints: [
+                {
+                    sprintTitle: "Sprint 17: Performance Optimization",
+                    implementations: [
+                        "Use MongoDB `explain()` on slow queries identified by APM or logging. Refine queries, ensure optimal index usage.",
+                        "Review all indexes. Add missing ones, remove unused/redundant ones. Analyze compound index effectiveness.",
+                        "Profile cache hit/miss ratios. Adjust TTLs. Ensure proper cache invalidation strategies. Consider different caching strategies.",
+                        "Profile resource usage and execution time of background jobs. Optimize logic, batch processing.",
+                        "Profile critical API endpoints. Identify and optimize bottlenecks. Consider asynchronous processing.",
+                        "Monitor CPU, memory, network, disk I/O under load. Identify and address leaks or excessive consumption.",
+                        "Use tools (Artillery, k6, JMeter) to simulate realistic concurrent user loads on critical flows. Identify system bottlenecks. Iteratively optimize and re-test.",
+                        "Use monitoring data to identify areas needing optimization. Log before/after states for optimization changes to measure impact."
+                    ],
+                    keyTests: [
+                        "Load Tests: Critical APIs and user flows meet defined performance targets under simulated peak load.",
+                        "Verification of Optimizations: Post-optimization, specific slow queries or bottlenecks identified earlier now show measurable improvement.",
+                        "System resource usage remains stable and within acceptable limits during sustained load tests.",
+                        "Cache hit rates for frequently accessed data are demonstrably improved where caching optimizations were applied."
+                    ]
+                },
+                {
+                    sprintTitle: "Sprint 18: Cloud Deployment Preparation",
+                    implementations: [
+                        "Write/refine IaC scripts (Terraform, CloudFormation, Pulumi) for provisioning all cloud resources.",
+                        "Finalize and test secure configuration and secret management for staging and production environments.",
+                        "Optimize production `Dockerfile`. Push images to a private container registry.",
+                        "Integrate with cloud provider's logging. Set up monitoring dashboards. Implement and test comprehensive alerting for production issues.",
+                        "Configure automated database backups. Define, document, and *test* the disaster recovery plan (Restore drills, Process for redeploying application).",
+                        "Automate deployments to staging and production using CI/CD pipeline. Implement strategies like blue/green or canary deployments if feasible. Include automated rollback procedures.",
+                        "Create initial runbooks for common operational tasks.",
+                        "Final Security Review for Production Setup: Check network security groups, firewall rules, IAM permissions in the cloud environment."
+                    ],
+                    keyTests: [
+                        "IaC Deployment Test: IaC scripts successfully provision a complete staging environment.",
+                        "Configuration Test: Deployed application in staging loads the correct environment-specific configurations and secrets.",
+                        "Logging/Monitoring/Alerting Test (in Staging): Application logs are shipped. Metrics populate dashboards. Manually trigger test alerts; verify alerts are generated and routed.",
+                        "Backup and Restore Drill (CRITICAL): Successfully perform a full backup of the staging database. Successfully restore this backup. Verify data integrity and application functionality.",
+                        "Automated Deployment Test: CI/CD pipeline successfully deploys the latest stable build to staging. Verify zero-downtime if applicable. Test automated rollback if implemented.",
+                        "Key operational procedures from the runbook are tested and validated in the staging environment."
+                    ]
+                }
+            ]
+        }
+    ];
+
+    const roadmapContainer = document.getElementById('roadmapContainer');
+    const overallProgressBar = document.getElementById('overallProgressBar');
+    const prevPhaseBtn = document.getElementById('prevPhaseBtn');
+    const nextPhaseBtn = document.getElementById('nextPhaseBtn');
+
+    let currentPhaseIndex = 0;
+    let phaseElements = [];
+
+    // Function to create HTML for a checkable "Implementation" item
+    function createImplementationItemHTML(itemText, phaseIndex, sprintIndex, itemIndex) {
+        const id = `impl-p${phaseIndex}-s${sprintIndex}-i${itemIndex}`;
+        const isChecked = localStorage.getItem(id) === 'true';
+        return `
+                <div class="checkable-item implementation-item ${isChecked ? 'completed' : ''}">
+                    <input type="checkbox" id="${id}" data-type="implementation" data-phase="${phaseIndex}" data-sprint="${sprintIndex}" ${isChecked ? 'checked' : ''}>
+                    <label for="${id}" class="font-vt323">${itemText}</label>
+                </div>
+            `;
+    }
+
+    // Function to create HTML for a checkable "Key Test" item
+    function createKeyTestItemHTML(itemText, phaseIndex, sprintIndex, itemIndex) {
+        const id = `test-p${phaseIndex}-s${sprintIndex}-t${itemIndex}`;
+        const isChecked = localStorage.getItem(id) === 'true';
+        return `
+                <div class="checkable-item key-test-item ${isChecked ? 'completed' : ''}">
+                    <input type="checkbox" id="${id}" data-type="key-test" data-phase="${phaseIndex}" data-sprint="${sprintIndex}" ${isChecked ? 'checked' : ''}>
+                    <label for="${id}" class="font-vt323">${itemText}</label>
+                </div>
+            `;
+    }
+
+    // Function to create HTML for a sprint
+    function createSprintHTML(sprint, phaseIndex, sprintIndex) {
+        const sprintId = `p${phaseIndex}-s${sprintIndex}`;
+        let implementationsHTML = '';
+        sprint.implementations.forEach((item, itemIndex) => {
+            implementationsHTML += createImplementationItemHTML(item, phaseIndex, sprintIndex, itemIndex);
+        });
+
+        let keyTestsHTML = '';
+        sprint.keyTests.forEach((test, testIndex) => {
+            keyTestsHTML += createKeyTestItemHTML(test, phaseIndex, sprintIndex, testIndex);
+        });
+
+        return `
+                <div class="sprint" id="sprint-${sprintId}">
+                    <div class="sprint-header">
+                        <h3 class="sprint-title font-vt323">${sprint.sprintTitle}</h3>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progress-${sprintId}" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <p class="section-title font-vt323">Implementations:</p>
+                    ${implementationsHTML}
+                    <h4 class="section-title font-vt323">Key Tests to Pass for Delivery:</h4>
+                    ${keyTestsHTML}
+                </div>
+            `;
+    }
+
+    // Function to create HTML for a phase
+    function createPhaseHTML(phase, phaseIndex) {
+        let sprintsHTML = '';
+        phase.sprints.forEach((sprint, sprintIndex) => {
+            sprintsHTML += createSprintHTML(sprint, phaseIndex, sprintIndex);
+        });
+
+        return `
+                <section class="phase" id="phase-${phaseIndex}">
+                    <h2 class="phase-header font-press-start">${phase.phaseTitle}</h2>
+                    ${sprintsHTML}
+                </section>
+            `;
+    }
+
+    function renderRoadmap() {
+        roadmapContainer.innerHTML = '';
+        phaseElements = [];
+
+        roadmapData.forEach((phase, phaseIndex) => {
+            const phaseHTML = createPhaseHTML(phase, phaseIndex);
+            roadmapContainer.innerHTML += phaseHTML;
+        });
+
+        phaseElements = Array.from(roadmapContainer.querySelectorAll('.phase'));
+
+        const checkboxes = roadmapContainer.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                localStorage.setItem(this.id, this.checked);
+                this.parentElement.classList.toggle('completed', this.checked);
+
+                const pIndex = parseInt(this.dataset.phase);
+                const sIndex = parseInt(this.dataset.sprint);
+                updateSprintProgress(pIndex, sIndex);
+                updateOverallProgress();
+            });
+        });
+
+        roadmapData.forEach((phase, phaseIndex) => {
+            phase.sprints.forEach((sprint, sprintIndex) => {
+                updateSprintProgress(phaseIndex, sprintIndex);
+            });
+        });
+        updateOverallProgress();
+
+        const savedPhaseIndex = parseInt(localStorage.getItem('currentPhaseIndex'), 10);
+        currentPhaseIndex = (phaseElements.length > 0 && !isNaN(savedPhaseIndex) && savedPhaseIndex >= 0 && savedPhaseIndex < phaseElements.length) ? savedPhaseIndex : 0;
+
+        if (phaseElements.length > 0) {
+            showPhase(currentPhaseIndex);
+        } else {
+            prevPhaseBtn.disabled = true;
+            nextPhaseBtn.disabled = true;
+        }
+    }
+
+    function updateSprintProgress(phaseIndex, sprintIndex) {
+        const sprintId = `p${phaseIndex}-s${sprintIndex}`;
+        const sprintElement = document.getElementById(`sprint-${sprintId}`);
+        if (!sprintElement) return;
+
+        const checkboxes = sprintElement.querySelectorAll('input[type="checkbox"]');
+        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        const totalCheckboxes = checkboxes.length;
+        const progress = totalCheckboxes > 0 ? (checkedCount / totalCheckboxes) * 100 : 0;
+
+        const progressBar = document.getElementById(`progress-${sprintId}`);
+        if (progressBar) {
+            progressBar.style.width = `${progress.toFixed(0)}%`;
+        }
+    }
+
+    function updateOverallProgress() {
+        const allCheckboxes = roadmapContainer.querySelectorAll('input[type="checkbox"]');
+        const total = allCheckboxes.length;
+
+        if (total === 0) {
+            overallProgressBar.style.width = `0%`;
+            overallProgressBar.textContent = `0%`;
+            return;
+        }
+        const completed = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+
+        const overallProgressPercentage = (completed / total) * 100;
+        overallProgressBar.style.width = `${overallProgressPercentage.toFixed(0)}%`;
+        overallProgressBar.textContent = `${overallProgressPercentage.toFixed(0)}%`;
+        localStorage.setItem('overallProjectProgress', overallProgressPercentage.toFixed(0));
+    }
+
+    function showPhase(index) {
+        if (phaseElements.length === 0) {
+            prevPhaseBtn.disabled = true;
+            nextPhaseBtn.disabled = true;
+            return;
+        }
+        phaseElements.forEach((phaseEl, i) => {
+            if (i === index) {
+                phaseEl.style.display = 'block';
+                setTimeout(() => phaseEl.classList.add('active'), 10);
+            } else {
+                phaseEl.classList.remove('active');
+                setTimeout(() => { if (!phaseEl.classList.contains('active')) phaseEl.style.display = 'none'; }, 500);
+            }
+        });
+        prevPhaseBtn.disabled = index === 0;
+        nextPhaseBtn.disabled = index === phaseElements.length - 1;
+        localStorage.setItem('currentPhaseIndex', index);
+        if (roadmapContainer.offsetTop) { // Check if roadmapContainer exists and is in view
+            // Scroll to the top of the roadmap container for better UX, with a small offset from the top
+            const headerOffset = 80; // Adjust this value based on your header's height or desired offset
+            const elementPosition = roadmapContainer.getBoundingClientRect().top + window.pageYOffset;
+            const offsetPosition = elementPosition - headerOffset;
+
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    prevPhaseBtn.addEventListener('click', () => {
+        if (currentPhaseIndex > 0) {
+            currentPhaseIndex--;
+            showPhase(currentPhaseIndex);
+        }
+    });
+
+    nextPhaseBtn.addEventListener('click', () => {
+        if (currentPhaseIndex < phaseElements.length - 1) {
+            currentPhaseIndex++;
+            showPhase(currentPhaseIndex);
+        }
+    });
+
+    // Initial Load
+    renderRoadmap();
+
+</script>
+</body>
+</html>
