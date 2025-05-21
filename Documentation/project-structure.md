@@ -1,14 +1,12 @@
 # Project Structure and Codebase Organization
 
-This document outlines the project structure for the gaming matchmaking platform, providing detailed information on the file and directory organization, code organization patterns, and module relationships.
+This document outlines the project structure for the backend server, providing detailed information on the file and directory organization, code organization patterns, and module relationships.
 
 ## 1. Project Root Structure
-
 ```
 /
 ├── .github/                    # GitHub configuration
 │   └── workflows/              # GitHub Actions workflows
-├── .vscode/                    # VS Code configuration (optional)
 ├── config/                     # Configuration files
 ├── coverage/                   # Test coverage reports
 ├── dist/                       # Compiled code (for production)
@@ -22,7 +20,6 @@ This document outlines the project structure for the gaming matchmaking platform
 ├── .env.example                # Example environment variables
 ├── .eslintrc.js                # ESLint configuration
 ├── .gitignore                  # Git ignore file
-├── .nycrc                      # Test coverage configuration
 ├── .prettierrc                 # Prettier configuration
 ├── docker-compose.yml          # Docker Compose configuration
 ├── Dockerfile                  # Docker configuration
@@ -33,7 +30,6 @@ This document outlines the project structure for the gaming matchmaking platform
 ```
 
 ## 2. Source Code Structure
-
 ```
 /src
 ├── app.js                      # Express application setup
@@ -78,7 +74,6 @@ This document outlines the project structure for the gaming matchmaking platform
 ```
 
 ## 3. Module Structure
-
 Each module follows a consistent structure:
 
 ```
@@ -102,9 +97,7 @@ Each module follows a consistent structure:
 ```
 
 ## 4. Detailed Module Breakdowns
-
 ### 4.1 User Module
-
 ```
 /src/modules/user
 ├── controllers/
@@ -132,7 +125,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.2 Auth Module
-
 ```
 /src/modules/auth
 ├── controllers/
@@ -157,7 +149,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.3 Game Module
-
 ```
 /src/modules/game
 ├── controllers/
@@ -184,7 +175,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.4 Matchmaking Module
-
 ```
 /src/modules/matchmaking
 ├── controllers/
@@ -212,7 +202,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.5 Lobby Module
-
 ```
 /src/modules/lobby
 ├── controllers/
@@ -237,7 +226,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.6 Chat Module
-
 ```
 /src/modules/chat
 ├── controllers/
@@ -264,7 +252,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.7 Notification Module
-
 ```
 /src/modules/notification
 ├── controllers/
@@ -288,7 +275,6 @@ Each module follows a consistent structure:
 ```
 
 ### 4.8 Admin Module
-
 ```
 /src/modules/admin
 ├── controllers/
@@ -317,9 +303,7 @@ Each module follows a consistent structure:
 ```
 
 ## 5. Services Structure
-
 ### 5.1 Socket Service
-
 ```
 /src/services/socket
 ├── socketManager.js                    # Socket.IO manager
@@ -332,7 +316,6 @@ Each module follows a consistent structure:
 ```
 
 ### 5.2 Event Service
-
 ```
 /src/services/event
 ├── eventEmitter.js                     # Event emitter
@@ -347,7 +330,6 @@ Each module follows a consistent structure:
 ```
 
 ### 5.3 Cache Service
-
 ```
 /src/services/cache
 ├── cacheManager.js                     # Cache manager
@@ -359,7 +341,6 @@ Each module follows a consistent structure:
 ```
 
 ## 6. Test Structure
-
 ```
 /test
 ├── unit/                               # Unit tests
@@ -397,105 +378,13 @@ Each module follows a consistent structure:
 ```
 
 ## 7. Configuration Structure
-
 ### 7.1 Main Configuration
-
-```javascript
-// src/config/index.js
-require('dotenv').config();
-
-// Import environment-specific configurations
-const env = process.env.NODE_ENV || 'development';
-const envConfig = require(`./environments/${env}`);
-
-// Base configuration
-const config = {
-  env,
-  port: process.env.PORT || 3000,
-  mongodb: {
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/gamematch',
-    options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    }
-  },
-  jwt: {
-    secret: process.env.JWT_SECRET,
-    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
-    refreshSecret: process.env.JWT_REFRESH_SECRET,
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
-  },
-  redis: {
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    password: process.env.REDIS_PASSWORD || ''
-  },
-  cors: {
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    preflightContinue: false,
-    optionsSuccessStatus: 204
-  },
-  igdb: {
-    clientId: process.env.IGDB_CLIENT_ID,
-    clientSecret: process.env.IGDB_CLIENT_SECRET
-  },
-  logging: {
-    level: process.env.LOG_LEVEL || 'info',
-    directory: process.env.LOG_DIRECTORY || 'logs'
-  },
-  email: {
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
-    },
-    from: process.env.EMAIL_FROM || 'noreply@gamematch.com'
-  }
-};
-
-// Merge with environment-specific configuration
-module.exports = { ...config, ...envConfig };
-```
-
+- Thoughts/Considerations regarding Main Configuration
 ### 7.2 Environment Configurations
-
-```javascript
-// src/config/environments/development.js
-module.exports = {
-  // Development-specific overrides
-  logging: {
-    level: 'debug'
-  }
-};
-
-// src/config/environments/production.js
-module.exports = {
-  // Production-specific overrides
-  logging: {
-    level: 'info'
-  },
-  cors: {
-    origin: process.env.CORS_ORIGIN || 'https://app.gamematch.com'
-  }
-};
-
-// src/config/environments/test.js
-module.exports = {
-  // Test-specific overrides
-  mongodb: {
-    uri: process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/gamematch_test'
-  },
-  logging: {
-    level: 'error'
-  }
-};
-```
+- Thoughts/Considerations regarding Environment Configurations
 
 ## 8. Module Relationships and Dependencies
-
 ### 8.1 Module Dependencies Diagram
-
 ```
 +-------------+     +-----------------+     +----------------+
 | Auth Module | <-- | User Module     | --> | Friend Module  |
@@ -513,9 +402,7 @@ module.exports = {
 +-------------+     | Module          |     +----------------+
                     +-----------------+
 ```
-
 ### 8.2 Critical Module Interactions
-
 1. **User & Auth Modules**:
    - Auth module depends on User module for user data
    - User registration and login flow crosses these modules
@@ -537,159 +424,13 @@ module.exports = {
    - Friend requests, matchmaking, lobby invites all create notifications
 
 ## 9. Application Entry Points
-
 ### 9.1 Server Entry Point
-
-```javascript
-// src/server.js
-const http = require('http');
-const app = require('./app');
-const config = require('./config');
-const logger = require('./utils/logger');
-const socketManager = require('./services/socket');
-const { connectDatabase } = require('./config/database');
-const { initRedis } = require('./config/redis');
-
-async function startServer() {
-  try {
-    // Connect to database
-    await connectDatabase();
-    logger.info('Connected to MongoDB');
-    
-    // Initialize Redis (if configured)
-    if (config.redis.url) {
-      await initRedis();
-      logger.info('Connected to Redis');
-    }
-    
-    // Create HTTP server
-    const server = http.createServer(app);
-    
-    // Initialize Socket.IO
-    socketManager.initialize(server);
-    logger.info('Socket.IO initialized');
-    
-    // Start server
-    server.listen(config.port, () => {
-      logger.info(`Server running in ${config.env} mode on port ${config.port}`);
-    });
-    
-    // Handle graceful shutdown
-    const gracefulShutdown = async () => {
-      logger.info('Shutting down gracefully...');
-      
-      // Close server
-      server.close(() => {
-        logger.info('HTTP server closed');
-      });
-      
-      // Close database connection
-      await mongoose.connection.close();
-      logger.info('Database connection closed');
-      
-      // Exit process
-      process.exit(0);
-    };
-    
-    // Handle termination signals
-    process.on('SIGTERM', gracefulShutdown);
-    process.on('SIGINT', gracefulShutdown);
-    
-  } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
-```
-
+- Thoughts/Considerations regarding Server Entry Point
 ### 9.2 Express Application Setup
-
-```javascript
-// src/app.js
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const compression = require('compression');
-const morgan = require('morgan');
-const config = require('./config');
-const errorHandler = require('./middleware/errorHandler');
-const logger = require('./utils/logger');
-
-// Import route modules
-const authRoutes = require('./modules/auth/routes');
-const userRoutes = require('./modules/user/routes');
-const gameRoutes = require('./modules/game/routes');
-const matchmakingRoutes = require('./modules/matchmaking/routes');
-const lobbyRoutes = require('./modules/lobby/routes');
-const chatRoutes = require('./modules/chat/routes');
-const notificationRoutes = require('./modules/notification/routes');
-const adminRoutes = require('./modules/admin/routes');
-
-// Create Express app
-const app = express();
-
-// Apply middleware
-app.use(helmet());
-app.use(cors(config.cors));
-app.use(compression());
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-// Logging middleware
-if (config.env !== 'test') {
-  app.use(
-    morgan('combined', {
-      stream: { write: message => logger.http(message.trim()) }
-    })
-  );
-}
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    data: {
-      service: 'gamematch-api',
-      version: require('../package.json').version,
-      uptime: process.uptime(),
-      timestamp: new Date().toISOString()
-    }
-  });
-});
-
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/games', gameRoutes);
-app.use('/api/matchmaking', matchmakingRoutes);
-app.use('/api/lobbies', lobbyRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/admin', adminRoutes);
-
-// 404 handler
-app.use((req, res, next) => {
-  res.status(404).json({
-    status: 'error',
-    error: {
-      code: 'NOT_FOUND',
-      message: `Cannot ${req.method} ${req.originalUrl}`
-    }
-  });
-});
-
-// Error handler
-app.use(errorHandler);
-
-module.exports = app;
-```
+- Thoughts/Considerations regarding Express Application Setup
 
 ## 10. File Naming Conventions
-
 ### 10.1 General Naming Conventions
-
 - **Files**: Use `camelCase` for files (e.g., `userService.js`)
 - **Directories**: Use `kebab-case` for directories (e.g., `user-service`)
 - **Classes**: Use `PascalCase` for classes (e.g., `UserService`)
@@ -697,7 +438,6 @@ module.exports = app;
 - **Variables/Functions**: Use `camelCase` for variables and functions (e.g., `getUserById`)
 
 ### 10.2 Specific File Naming Patterns
-
 - **Controllers**: `[resource]Controller.js` (e.g., `userController.js`)
 - **Models**: `[Model].js` (e.g., `User.js`)
 - **Routes**: `[resource]Routes.js` (e.g., `userRoutes.js`)
@@ -706,9 +446,7 @@ module.exports = app;
 - **Tests**: `[filename].test.js` (e.g., `userService.test.js`)
 
 ## 11. Import/Export Patterns
-
 ### 11.1 Named Exports Pattern
-
 ```javascript
 // src/modules/user/services/userService.js
 async function getUserById(userId) {
@@ -736,7 +474,6 @@ module.exports = {
 ```
 
 ### 11.2 Index File Pattern
-
 ```javascript
 // src/modules/user/services/index.js
 const userService = require('./userService');
@@ -751,7 +488,6 @@ module.exports = {
 ```
 
 ### 11.3 Module Exports Pattern
-
 ```javascript
 // src/modules/user/index.js
 const routes = require('./routes');
@@ -772,9 +508,7 @@ module.exports = {
 ```
 
 ## 12. Code Organization Best Practices
-
 ### 12.1 Separation of Concerns
-
 1. **Routes**: Handle URL routing and parameter parsing
 2. **Controllers**: Handle HTTP request/response
 3. **Services**: Contain business logic
@@ -782,46 +516,9 @@ module.exports = {
 5. **Validations**: Handle input validation
 
 ### 12.2 Dependency Injection
-
-Use dependency injection to make code more testable:
-
-```javascript
-// src/modules/user/services/userService.js
-class UserService {
-  constructor(userModel, cacheService) {
-    this.userModel = userModel;
-    this.cacheService = cacheService;
-  }
-  
-  async getUserById(userId) {
-    // Check cache first
-    const cachedUser = await this.cacheService.get(`user:${userId}`);
-    if (cachedUser) return cachedUser;
-    
-    // Get from database
-    const user = await this.userModel.findById(userId);
-    
-    // Cache for future requests
-    if (user) {
-      await this.cacheService.set(`user:${userId}`, user, 300); // 5 minutes
-    }
-    
-    return user;
-  }
-  
-  // Other methods...
-}
-
-// Dependency injection in module index
-const User = require('../models/User');
-const cacheService = require('../../../services/cache');
-const userService = new UserService(User, cacheService);
-
-module.exports = userService;
-```
+- Thoughts/Considerations regarding Dependency Injection
 
 ### 12.3 Error Handling
-
 Centralize error handling:
 
 ```javascript
@@ -842,165 +539,18 @@ exports.getUser = asyncHandler(async (req, res) => {
 ```
 
 ### 12.4 Custom Error Classes
-
-```javascript
-// src/utils/errors.js
-class AppError extends Error {
-  constructor(code, message, statusCode) {
-    super(message);
-    this.code = code;
-    this.statusCode = statusCode;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
-class NotFoundError extends AppError {
-  constructor(resource, id) {
-    super('NOT_FOUND', `${resource} with ID ${id} not found`, 404);
-  }
-}
-
-// Export other error classes...
-
-module.exports = {
-  AppError,
-  NotFoundError,
-  // Other error classes...
-};
-```
+- Thoughts/Considerations regarding Custom Error Classes
 
 ## 13. Environment Variables
-
 ### 13.1 Required Environment Variables
-
-```
-# .env.example
-
-# Application
-NODE_ENV=development
-PORT=3000
-
-# Database
-MONGODB_URI=mongodb://localhost:27017/gamematch
-
-# JWT
-JWT_SECRET=your_jwt_secret_key
-JWT_EXPIRES_IN=1d
-JWT_REFRESH_SECRET=your_refresh_token_secret
-JWT_REFRESH_EXPIRES_IN=7d
-
-# Redis
-REDIS_URL=redis://localhost:6379
-REDIS_PASSWORD=
-
-# CORS
-CORS_ORIGIN=*
-
-# IGDB API
-IGDB_CLIENT_ID=your_igdb_client_id
-IGDB_CLIENT_SECRET=your_igdb_client_secret
-
-# Logging
-LOG_LEVEL=info
-LOG_DIRECTORY=logs
-
-# Email
-EMAIL_HOST=smtp.example.com
-EMAIL_PORT=587
-EMAIL_USER=your_email_user
-EMAIL_PASSWORD=your_email_password
-EMAIL_FROM=noreply@gamematch.com
-```
+- Thoughts/Considerations regarding Required Environment Variables
 
 ### 13.2 Environment-specific Variables
-
-```
-# .env.development
-NODE_ENV=development
-PORT=3000
-MONGODB_URI=mongodb://localhost:27017/gamematch_dev
-LOG_LEVEL=debug
-
-# .env.test
-NODE_ENV=test
-PORT=3001
-MONGODB_URI=mongodb://localhost:27017/gamematch_test
-LOG_LEVEL=error
-
-# .env.production
-NODE_ENV=production
-PORT=80
-MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/gamematch
-LOG_LEVEL=info
-CORS_ORIGIN=https://app.gamematch.com
-```
+- Thoughts/Considerations regarding Environment-specific Variables
 
 ## 14. Module Registration System
-
 ### 14.1 Module Registration
-
-```javascript
-// src/moduleRegistry.js
-class ModuleRegistry {
-  constructor() {
-    this.modules = new Map();
-  }
-  
-  register(name, module) {
-    this.modules.set(name, module);
-    return this;
-  }
-  
-  get(name) {
-    return this.modules.get(name);
-  }
-  
-  getAll() {
-    return Array.from(this.modules.values());
-  }
-  
-  initialize(app) {
-    // Initialize all modules
-    this.getAll().forEach(module => {
-      if (typeof module.initialize === 'function') {
-        module.initialize(app);
-      }
-    });
-  }
-}
-
-const registry = new ModuleRegistry();
-
-// Register modules
-registry
-  .register('auth', require('./modules/auth'))
-  .register('user', require('./modules/user'))
-  .register('game', require('./modules/game'))
-  .register('matchmaking', require('./modules/matchmaking'))
-  .register('lobby', require('./modules/lobby'))
-  .register('chat', require('./modules/chat'))
-  .register('notification', require('./modules/notification'))
-  .register('admin', require('./modules/admin'));
-
-module.exports = registry;
-```
+- Thoughts/Considerations regarding Module Registration
 
 ### 14.2 Module Initialization
-
-```javascript
-// src/app.js
-const express = require('express');
-const moduleRegistry = require('./moduleRegistry');
-// Import other middleware...
-
-const app = express();
-
-// Apply middleware...
-
-// Initialize all modules
-moduleRegistry.initialize(app);
-
-// Error handling middleware...
-
-module.exports = app;
-```
+- Thoughts/Considerations regarding Module Initialization

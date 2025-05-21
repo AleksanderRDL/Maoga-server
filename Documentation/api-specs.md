@@ -34,6 +34,7 @@ All API endpoints follow these standards:
   }
   ```
 ### 1.2 Authentication
+
 ### 1.3 Pagination
 
 
@@ -52,6 +53,7 @@ All API endpoints follow these standards:
 ## 8. Chat API
 
 ## 9. Notification API
+
 
 ## 10. WebSocket API
 ### 10.1 Connection

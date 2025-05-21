@@ -3,9 +3,7 @@
 This document outlines the technical design of the matchmaking algorithm that will power the gaming matchmaking platform. The algorithm is designed to match players based on various criteria including games, skills, preferences, and social factors.
 
 ## 1. Matchmaking Requirements
-
 ### 1.1 Functional Requirements
-
 - **Multi-game Support**: Match users across multiple games with weighted preferences
 - **Group Size Flexibility**: Support matching for various group sizes (1-to-many players)
 - **Preference-based Matching**: Match based on user-defined preferences
@@ -16,7 +14,6 @@ This document outlines the technical design of the matchmaking algorithm that wi
 - **Real-time & Scheduled Matching**: Support both immediate and future planned matches
 
 ### 1.2 Non-functional Requirements
-
 - **Fairness**: Algorithm should be unbiased and not consistently disadvantage any players
 - **Performance**: Match formation should be efficient, even with a growing user base
 - **Scalability**: Design should handle increasing numbers of concurrent match requests
@@ -25,9 +22,7 @@ This document outlines the technical design of the matchmaking algorithm that wi
 - **Adaptability**: Adjust to varying population sizes and peak/off-peak hours
 
 ## 2. High-Level Algorithm Design
-
 ### 2.1 Algorithm Phases
-
 The matchmaking algorithm operates in four main phases:
 
 1. **Initialization**: Process incoming match requests and prepare for matching
@@ -53,7 +48,6 @@ The matchmaking algorithm operates in four main phases:
 ```
 
 ### 2.3 Algorithm Overview
-
 1. Match requests are collected from users and placed in appropriate queues
 2. The matching engine periodically processes queues to form matches
 3. As time passes, matching criteria are progressively relaxed
@@ -61,9 +55,7 @@ The matchmaking algorithm operates in four main phases:
 5. Users confirm their participation, and the match is finalized or adjusted
 
 ## 3. Detailed Algorithm Design
-
 ### 3.1 Match Request Processing
-
 #### 3.1.1 Data Structure
 ```javascript
 // Match request structure
@@ -97,9 +89,7 @@ The matchmaking algorithm operates in four main phases:
   updatedAt: Date
 }
 ```
-
 #### 3.1.2 Queue Structure
-
 Requests are organized into queues based on:
 1. Primary game (highest weight game)
 2. Game mode
@@ -124,9 +114,7 @@ GameQueues = {
 ```
 
 ### 3.2 Matching Criteria Evaluation
-
 #### 3.2.1 Compatibility Score Calculation
-
 For each pair of users (A and B), a compatibility score is calculated:
 
 ```javascript
@@ -177,9 +165,7 @@ function calculateCompatibilityScore(requestA, requestB) {
   return score;
 }
 ```
-
 #### 3.2.2 Game Match Score
-
 ```javascript
 function calculateGameMatchScore(gamesA, gamesB) {
   // Find common games
@@ -207,9 +193,7 @@ function calculateGameMatchScore(gamesA, gamesB) {
   return (weightedMatchScore / (totalWeightA * totalWeightB)) * 100;
 }
 ```
-
 #### 3.2.3 Region Match Score
-
 ```javascript
 function calculateRegionMatchScore(regionsA, regionsB, prefA, prefB) {
   // If either has 'any' preference, full score
@@ -237,9 +221,7 @@ function calculateRegionMatchScore(regionsA, regionsB, prefA, prefB) {
 ```
 
 ### 3.3 Match Formation Algorithm
-
 #### 3.3.1 Core Matching Process
-
 ```javascript
 async function processMatchQueue(gameId, gameMode, region) {
   // Get all active requests for this queue
@@ -265,9 +247,7 @@ async function processMatchQueue(gameId, gameMode, region) {
   return lobbies;
 }
 ```
-
 #### 3.3.2 Weighted Bipartite Matching Implementation
-
 For optimal matching, we implement a variation of the Hungarian algorithm:
 
 ```javascript
@@ -306,11 +286,9 @@ function findOptimalMatches(compatibilityMatrix, preselectedGroups) {
 ```
 
 ### 3.4 Criteria Relaxation Strategy
-
 As time passes, matchmaking criteria are progressively relaxed to ensure players find matches within a reasonable time.
 
 #### 3.4.1 Relaxation Stages
-
 ```javascript
 function relaxCriteria(request) {
   const currentLevel = request.relaxationLevel || 0;
@@ -381,7 +359,6 @@ function relaxCriteria(request) {
 ```
 
 ### 3.5 Match Finalization and Lobby Creation
-
 Once matches are formed, they need to be finalized and lobbies created:
 
 ```javascript
@@ -441,9 +418,7 @@ async function finalizeMatch(matchedUsers, primaryGameId, gameMode) {
 ```
 
 ## 4. Special Matching Considerations
-
 ### 4.1 Scheduled Matchmaking
-
 For non-immediate matchmaking:
 
 ```javascript
@@ -470,7 +445,6 @@ function processScheduledMatches() {
 ```
 
 ### 4.2 Pre-selected Friends Handling
-
 When users want to match along with their friends:
 
 ```javascript
@@ -528,7 +502,6 @@ function groupPreselectedUsers(requests) {
 ```
 
 ### 4.3 Small User Base Optimization
-
 For periods with few active users:
 
 ```javascript
@@ -551,9 +524,7 @@ function optimizeForSmallUserBase(requests) {
 ```
 
 ## 5. Implementation Strategy
-
 ### 5.1 Background Processing
-
 The matchmaking process will run as a background job:
 
 ```javascript
@@ -587,9 +558,7 @@ function scheduleMatchmakingJob() {
   }, 60 * 1000);
 }
 ```
-
 ### 5.2 Real-time Status Updates
-
 Users need to receive real-time updates on their matchmaking status:
 
 ```javascript
@@ -613,9 +582,7 @@ function updateMatchmakingStatus(userId, requestId) {
   });
 }
 ```
-
 ### 5.3 Performance Optimizations
-
 To ensure the matchmaking system performs well:
 
 1. **Indexing**: Maintain indexes on frequently queried fields
@@ -648,9 +615,7 @@ function processMatchmakingWithTimeLimit(requests, timeLimit) {
 ```
 
 ## 6. Testing and Validation
-
 ### 6.1 Algorithm Validation Metrics
-
 To evaluate the algorithm's effectiveness, we'll track:
 
 1. **Match Quality**: Average compatibility score of formed matches
@@ -660,7 +625,6 @@ To evaluate the algorithm's effectiveness, we'll track:
 5. **Preference Satisfaction**: How well matches align with user preferences
 
 ### 6.2 Simulation Testing
-
 Before deploying to production, we'll run simulations:
 
 ```javascript
@@ -688,7 +652,6 @@ async function runMatchmakingSimulation(config) {
 ```
 
 ### 6.3 A/B Testing Strategy
-
 Once deployed, we can use A/B testing to compare algorithm variations:
 
 1. **Control Group**: Users matched with current algorithm
@@ -697,9 +660,7 @@ Once deployed, we can use A/B testing to compare algorithm variations:
 4. **Feedback**: Collect explicit feedback on match quality
 
 ## 7. Future Enhancements
-
 ### 7.1 Machine Learning Integration
-
 Future versions could incorporate machine learning:
 
 1. **Preference Prediction**: Learn user preferences from past behavior
@@ -708,7 +669,6 @@ Future versions could incorporate machine learning:
 4. **Dynamic Weights**: Adjust criteria weights based on learned importance
 
 ### 7.2 Social Graph Integration
-
 Enhance matching with social graph data:
 
 1. **Friend-of-Friend Matching**: Prefer matching with friends-of-friends
@@ -717,7 +677,6 @@ Enhance matching with social graph data:
 4. **Karma-Based Matching**: Use karma/reputation in match formation
 
 ### 7.3 Adaptive Time-Based Strategies
-
 Adjust strategies based on time of day:
 
 1. **Peak Hours**: Optimize for throughput during high-traffic periods
