@@ -379,9 +379,29 @@ Each module follows a consistent structure:
 
 ## 7. Configuration Structure
 ### 7.1 Main Configuration
-- Thoughts/Considerations regarding Main Configuration
+**Thoughts/Considerations regarding Main Configuration**:
+* **Location**: `src/config/index.js` is a good central place.
+* **Purpose**: To consolidate all application configurations, load environment-specific settings, and provide a single point of access for configuration values throughout the application.
+* **Loading Strategy**:
+1.  Load default configurations (e.g., from `src/config/default.js` or directly in `index.js`).
+2.  Load environment-specific configurations based on `NODE_ENV` (e.g., from `src/config/environments/development.js` or `production.js`). These should override defaults.
+3.  Load environment variables from `process.env` (potentially using `dotenv` for local development). These should override file-based configurations, especially for secrets.
+* **Validation**: Optionally, validate that all required configurations are present and have sensible values at startup. If a critical config is missing (e.g., `MONGODB_URI` in production), fail fast.
+* **Structure**: Organize the exported config object logically (e.g., `config.database.uri`, `config.jwt.secret`, `config.server.port`).
+* **Immutability**: Consider making the exported config object immutable (e.g., using `Object.freeze`) to prevent accidental modifications at runtime. (Not critical, but a good practice)
+* **Maoga Context**: The existing plan for `src/config/` with environment-specific files and a main `index.js` is solid. Ensure it prioritizes environment variables for secrets and critical settings.
 ### 7.2 Environment Configurations
-- Thoughts/Considerations regarding Environment Configurations
+**Thoughts/Considerations regarding Environment Configurations**:
+* **Location**: `src/config/environments/` (e.g., `development.js`, `production.js`, `test.js`).
+* **Purpose**: To store configuration values that differ between environments and are not secrets (secrets should come from `process.env` or a secure store).
+* **What to Include**:
+* `development.js`: Settings for local development (e.g., relaxed logging, specific ports if they differ, flags to enable debug features).
+* `test.js`: Settings for automated testing (e.g., in-memory database connection string if used, disabled external API calls via mocks, specific test user credentials if needed).
+* `production.js` / `staging.js`: Settings for these environments (e.g., production log levels, external service URLs if they differ and aren't secrets).
+* **Merging**: These files should be merged with a base/default configuration, and then further overridden by actual environment variables. The `config` npm package handles this pattern well.
+* **Keep it Minimal**: Only include settings that genuinely differ. Avoid duplicating configurations that are the same across environments or that should be controlled by environment variables.
+* **Secrets**: **Reiterate that secrets (API keys, DB passwords, JWT secrets) should NOT be in these files.** They should be loaded from environment variables. These files might define *which* environment variable to look for, but not the secret value itself.
+* **Maoga Context**: This structure is good for organizing non-sensitive, environment-specific settings.
 
 ## 8. Module Relationships and Dependencies
 ### 8.1 Module Dependencies Diagram
@@ -425,9 +445,38 @@ Each module follows a consistent structure:
 
 ## 9. Application Entry Points
 ### 9.1 Server Entry Point
-- Thoughts/Considerations regarding Server Entry Point
+**Thoughts/Considerations regarding Server Entry Point**:
+* **File**: `src/server.js` as planned.
+* **Responsibilities**:
+1.  **Load Configuration**: Initialize and load application configuration (from `src/config/index.js`).
+2.  **Initialize Logger**: Set up the application-wide logger.
+3.  **Establish Database Connection**: Connect to MongoDB (and Redis if used). Handle connection errors.
+4.  **Initialize Express App**: Import and initialize the Express app from `src/app.js`.
+5.  **Start HTTP Server**: `app.listen(config.port, () => { ... })`.
+6.  **Initialize Socket.IO Server**: If Socket.IO is integrated with the HTTP server, initialize it here.
+7.  **Unhandled Error Handlers**: Set up `process.on('uncaughtException')` and `process.on('unhandledRejection')` for graceful shutdown on critical errors.
+8.  **Graceful Shutdown Logic**: Implement logic to close server connections, database connections, etc., on `SIGINT` and `SIGTERM` signals.
+* **Keep it Lean**: The `server.js` should focus on these startup/shutdown concerns. Most application setup (middleware, routes) should be in `app.js`.
+* **Maoga Context**: This is a standard and good approach. Ensure robust error handling for startup (e.g., if DB connection fails) and graceful shutdown.
 ### 9.2 Express Application Setup
-- Thoughts/Considerations regarding Express Application Setup
+**Thoughts/Considerations regarding Express Application Setup**:
+* **File**: `src/app.js` as planned.
+* **Responsibilities**:
+1.  **Create Express Instance**: `const app = express();`.
+2.  **Middleware Setup (Order Matters)**:
+* **Core Middleware**: `express.json()`, `express.urlencoded({ extended: true })`.
+* **Security Middleware**: `helmet` (for security headers), `cors` (for Cross-Origin Resource Sharing).
+* **Compression Middleware**: `compression`.
+* **Request Logging Middleware**: Morgan or custom.
+* **Authentication Middleware**: (e.g., JWT verification) - might be global or applied to specific routes.
+* **(Optional) Request ID Middleware**: To add a unique ID to each request for tracing.
+3.  **Route Definitions**: Mount routers from your modules (e.g., `app.use('/api/users', userRoutes);`, `app.use('/api/auth', authRoutes);`).
+4.  **Static Assets (if any)**: `app.use(express.static('public'));` (though likely not much for a pure backend API).
+5.  **Health Check Endpoint**: Define `/health` or similar.
+6.  **404 Handler**: A route that catches all unhandled requests (e.g., `app.all('*', (req, res) => res.status(404).json({ message: 'Not Found' }));`). This should be *after* all your defined routes.
+7.  **Global Error Handler**: The centralized error handling middleware. This should be the *last* piece of middleware added.
+* **Export**: Export the configured `app` instance to be used by `server.js`.
+* **Maoga Context**: This is a standard Express setup. The key is the correct ordering of middleware.
 
 ## 10. File Naming Conventions
 ### 10.1 General Naming Conventions
@@ -516,7 +565,45 @@ module.exports = {
 5. **Validations**: Handle input validation
 
 ### 12.2 Dependency Injection
-- Thoughts/Considerations regarding Dependency Injection
+**Thoughts/Considerations regarding Dependency Injection (DI)**:
+* **Concept**: A design pattern where a component's dependencies (other objects or services it needs to function) are provided to it from an external source, rather than the component creating them itself.
+* **Benefits**:
+* **Decoupling**: Components are less coupled, making the system more modular and easier to maintain.
+* **Testability**: Easier to mock dependencies during unit testing.
+* **Flexibility**: Easier to swap out implementations of dependencies.
+* **Forms of DI**:
+* **Constructor Injection**: Dependencies are passed via the class constructor.
+* **Setter/Property Injection**: Dependencies are set via public setters or properties.
+* **Parameter Injection**: Dependencies are passed as method parameters (less common for object dependencies, more for data).
+* **DI Containers/Frameworks (for JavaScript/Node.js)**:
+* Libraries like `Awilix`, `InversifyJS`, `NestJS` (which is a full framework with built-in DI).
+* **Manual DI (Simpler Approach for Maoga)**:
+* You can achieve many benefits of DI without a full container by simply instantiating and passing dependencies manually.
+* Example:
+```javascript
+// services/userService.js
+// module.exports = function(userRepository, notificationService) { // Function returning object, or class
+//   return {
+//     async createUser(data) {
+//       const user = await userRepository.create(data);
+//       await notificationService.sendWelcomeEmail(user);
+//       return user;
+//     }
+//   };
+// };
+
+            // modules/user/index.js (or a central services setup file)
+            // const userRepository = require('./repositories/userRepository'); // Assume this is set up
+            // const notificationService = require('../../services/notificationService'); // Assume this is set up
+            // const userServiceInstance = require('./services/userService')(userRepository, notificationService);
+            // module.exports = { services: { userService: userServiceInstance, ... } };
+```
+Your current structure of importing services (e.g., `NotificationService` inside `UserService`) is a form of service location, not pure DI. Explicitly passing dependencies makes testing easier.
+    * **Maoga Context**:
+        * **Current Stage**: For the modular monolith, full-blown DI containers might be overkill initially.
+        * **Recommendation**: Consider a "manual DI" approach for your services. When a service (e.g., `AuthService`) needs another service (e.g., `UserService`, `TokenService`, `EmailService` as per `project-structure.md` for Auth module), instantiate and pass these dependencies (e.g., in the constructor of the service class or to a factory function). This greatly improves testability by allowing you to mock these dependencies in tests.
+        * Start by applying this to new services or when refactoring.
+        * (This is a good practice to adopt for testability and modularity, can be introduced gradually. Not critical for MVP to use a DI *framework*, but the *pattern* is beneficial.)
 
 ### 12.3 Error Handling
 Centralize error handling:
@@ -539,18 +626,106 @@ exports.getUser = asyncHandler(async (req, res) => {
 ```
 
 ### 12.4 Custom Error Classes
-- Thoughts/Considerations regarding Custom Error Classes
+**Thoughts/Considerations regarding Custom Error Classes**:
+* **Covered in `implementation-guidelines.md` (Section 3.2.1)**.
+* **Reiteration for Project Structure context**:
+* Define these in `src/utils/errors.js` as planned.
+* Ensure they capture `statusCode`, `errorCode`, and an `isOperational` flag.
+* Examples: `NotFoundError`, `ValidationError`, `AuthenticationError`, `AuthorizationError`.
+* Use them consistently throughout your service layer to signal specific error conditions.
+* The global error handler middleware (`src/middleware/errorHandler.js`) will then use the properties of these custom errors to formulate appropriate HTTP responses.
+* **Maoga Context**: This is a foundational element for clean error handling and is well-integrated with the planned project structure.
 
 ## 13. Environment Variables
 ### 13.1 Required Environment Variables
-- Thoughts/Considerations regarding Required Environment Variables
+**Thoughts/Considerations regarding Required Environment Variables**:
+* **Covered in `implementation-guidelines.md` (Section 7.1.1)**.
+* **List for Maoga (from previous analysis and docs)**:
+* `NODE_ENV`: (e.g., "development", "production", "test") - Controls behavior of many libraries and your custom configs.
+* `PORT`: Port the server listens on.
+* `MONGODB_URI`: Connection string for MongoDB.
+* `JWT_SECRET`: Secret key for signing JWTs.
+* `JWT_REFRESH_SECRET`: Secret key for signing refresh tokens.
+* `JWT_ACCESS_TOKEN_EXPIRY`: (e.g., "15m", "1h")
+* `JWT_REFRESH_TOKEN_EXPIRY`: (e.g., "7d")
+* `EXTERNAL_GAME_API_KEY`: For IGDB/RAWG.
+* `EXTERNAL_GAME_API_URL`: Base URL for the external game API.
+* `LOG_LEVEL`: (e.g., "info", "debug")
+* `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins for CORS.
+* `REDIS_URL` or `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`: If Redis is used.
+* `FCM_SERVER_KEY`: For Firebase Cloud Messaging push notifications.
+* `CLOUD_STORAGE_BUCKET_NAME`: (e.g., S3 bucket name for media uploads)
+* `CLOUD_STORAGE_ACCESS_KEY_ID`: (If using access keys directly, though IAM roles are better for ECS/EC2)
+* `CLOUD_STORAGE_SECRET_ACCESS_KEY`:
+* `CLOUD_STORAGE_REGION`:
+* `PAYMENT_PROVIDER_API_KEY`: (e.g., Stripe secret key)
+* `PAYMENT_PROVIDER_WEBHOOK_SECRET`:
+* **Documentation**: Maintain this list in `.env.example`.
+* **Validation**: Consider adding a startup script that checks for the presence of essential environment variables in production/staging and exits if they are missing.
+* **Maoga Context**: This list will grow as features like push notifications, media uploads, and payments are implemented.
 
 ### 13.2 Environment-specific Variables
-- Thoughts/Considerations regarding Environment-specific Variables
+**Thoughts/Considerations regarding Environment-specific Variables**:
+* **Concept**: These are variables whose *values* change based on the environment, but the variable *name* remains the same. The list in 13.1 are all examples of this.
+* **Examples of Value Differences**:
+* `NODE_ENV`: "development" vs "production"
+* `MONGODB_URI`: `mongodb://localhost:27017/maoga_dev` vs `mongodb+srv://prod_user:prod_pass@cluster.mongodb.net/maoga_prod`
+* `LOG_LEVEL`: "debug" vs "info"
+* `CORS_ALLOWED_ORIGINS`: `http://localhost:8080` vs `https://app.maoga.gg`
+* API Keys: Dev keys vs Production keys for external services.
+* **Management**:
+* **Local Development**: Managed via `.env` file (loaded by `dotenv`).
+* **Testing**: Can be set in `package.json` test scripts, a test-specific `.env` file, or by the CI environment.
+* **Staging/Production**: Injected by the deployment platform (ECS, Kubernetes, Heroku) and often sourced from secure secret stores (AWS Secrets Manager, Parameter Store, Vault).
+* **No Secrets in Code**: Reiterate that the *values* for production secrets should never be in version control.
+* **Maoga Context**: Standard practice. The key is having a secure and reliable way to provide the correct values for each environment when the application is deployed.
 
 ## 14. Module Registration System
 ### 14.1 Module Registration
-- Thoughts/Considerations regarding Module Registration
+**Thoughts/Considerations regarding Module Registration**:
+* **Purpose**: In a modular application, this refers to the process of making each module's components (especially routes, and sometimes services or event handlers) known to and integrated with the main application.
+* **Current Approach in `project-structure.md`**: The `src/modules/[module-name]/index.js` file is planned to have an `initialize` function:
+```javascript
+// src/modules/user/index.js
+module.exports = {
+  // ...
+  initialize: (app) => {
+    app.use('/api/users', routes); // 'routes' is require('./routes') from within user module
+  }
+};
+```
+And then in `src/app.js` (or wherever modules are loaded):
+```javascript
+// src/app.js
+// const userModule = require('./modules/user');
+// const gameModule = require('./modules/game');
+// ...
+// userModule.initialize(app);
+// gameModule.initialize(app);
+```
+* **This is a good, clear pattern for modular monoliths.**
+* **Considerations**:
+* **Route Prefixing**: The `initialize` function clearly defines the base API path for all routes within that module (e.g., `/api/users`).
+* **Order of Initialization**: If modules have dependencies on each other during initialization (e.g., for event bus subscriptions), the order might matter. However, for simply registering routes, the order is usually less critical unless routes can conflict (which they shouldn't with proper prefixing).
+* **Other Registrations**: Besides routes, a module's `initialize` function could also:
+* Register event listeners with a shared event bus.
+* Register cron jobs defined within the module.
+* Perform any other setup tasks specific to that module.
+* **Maoga Context**: The planned `initialize` function per module is a good system. It keeps module setup encapsulated.
 
 ### 14.2 Module Initialization
-- Thoughts/Considerations regarding Module Initialization
+**Thoughts/Considerations regarding Module Initialization**:
+* **Extends 14.1**. Module Initialization is the *act* of calling those `initialize` functions (or similar setup logic) when the application starts.
+* **Centralized Initialization**: This should happen in a central place in your application, typically in `src/app.js` before the 404 and error handlers, but after core middleware is set up.
+* **Responsibilities During Initialization (beyond route registration)**:
+* **Service Instantiation**: If services within a module need to be instantiated with dependencies (especially if using manual DI), this could happen during initialization, or services could be singletons exported from the module.
+* **Event Bus Subscriptions**: If modules communicate via an event bus, they would subscribe to relevant events during their initialization.
+* **Background Tasks**: If a module needs to start any background tasks or timers, this could be triggered.
+* **Health Checks**: A module could register its components for health checks.
+* **Example Flow in `app.js`**:
+1.  Setup core Express app (`app = express()`).
+2.  Setup core middleware (JSON parser, CORS, helmet, logger).
+3.  Initialize shared services (like an Event Bus if used).
+4.  Loop through modules or explicitly import and call `module.initialize(app, { eventBus, otherSharedServices })`.
+5.  Setup final catch-all (404) and error handling middleware.
+* **Maoga Context**: The pattern described in `project-structure.md` for module `index.js` having an `initialize(app)` function that registers routes is the core of this. Ensure that if modules have other setup needs (like subscribing to a shared event bus, if you introduce one), the `initialize` function can handle that or a similar standardized setup function is called.
