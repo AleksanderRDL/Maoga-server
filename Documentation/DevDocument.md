@@ -1,4 +1,6 @@
 # Development document
+This is the original design document i made before specifying all the further documentation and initial implementations, and should therefore not serve as an up-to-date view of the backend.
+
 ## Overall idea behind the mvp/project
 I am creating a server which will serve as the backend for my mobile app and web-app-based frontend. They will manage gamers looking to match for someone to play with. 
 So based on your profile attributes (location, playstyle, etc.) and inputting the desired games, the competitiveness of your gamestyle, etc. It will start a search which will try and match you with others fitting the parameters as best as possible. We want to entice players to meet each other and stay connected in the app, think of it as a bit of a mix between discord and an app like tinder.

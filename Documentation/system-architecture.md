@@ -1,20 +1,13 @@
 # System Architecture Design
-
 ## 1. High-Level Architecture Overview
-
 ### 1.1 Architectural Style: Modular Monolith
-
 The system follows a modular monolith architecture, where all components reside in a single codebase but are organized into well-defined modules with clear boundaries. This approach provides:
-
 - Simplified deployment and testing
 - Easier development workflow for a small team
 - Clear module boundaries for future extraction if needed
 - Lower initial complexity compared to microservices
 
 ### 1.2 System Layers
-
-![Architecture Diagram](https://mermaid.ink/img/pako:eNqNksFu2zAMhl_F0KnF4Kwdmi1Asq3XHnbrZekh0BlaomMBliiQdLsNffeRcpwm2bbNJ4n8_-8nRUoXZJMkShEylA3Kgt0r0ZacVrQuNUu7f5Q0GwR7nI16IvBxhGMtZbQlDXk-zG1dYmXk3t2DWBp0k2dTuhSdjb9aBmMHwVQsLV8jCLpKC_VlwDLGdCm3aAJIX2-MU6wDICIZdOpw0XuTLwwDPkvuFNbPIPOTxC0ahxCaRy-_8CfnZA9xRrMuYGMiKNpGrOI6X3tVOEZA6_XWOFrrqfIxb0rjwWOqHG70Dl0yZXLnl_Xf-c0dwOZbD9TpZYGWFBQVOuWRhxppL32tFN67-RRE7f0EpbGXOeXqnF6t5ueMDLl2OjxLV1Q_gFgYgr0I5v-JOH3bhdtX9f6G_fz9y6cB8LNzKHM23bfmXBhrEr5RWDrcBSsV9QK1krYP_Y-WG2ytC06y3j3nLImGbXCQVFKihpUqJGVpfPdKn6-yNHkvWUY2T9L0Znl7XdxMi3SWTmdXk7hC7Sc6JJ9nqTgklzCOFNnzGZC6Yze933TS-wHBTBZq)
-
 #### 1.2.1 Presentation Layer
 - **Express Routes**: Handle HTTP requests and responses
 - **Socket.IO Events**: Manage real-time communications
@@ -41,7 +34,6 @@ Each functional domain is organized into modules:
 - **Schema Validation**: Data integrity
 
 ### 1.3 Cross-Cutting Concerns
-
 #### 1.3.1 Authentication & Authorization
 - JWT-based token authentication
 - Role-based access control
@@ -62,9 +54,7 @@ Each functional domain is organized into modules:
 - Data validation at the model layer
 
 ## 2. Module Boundaries and Communication
-
 ### 2.1 Module Interface Contract
-
 Modules communicate with each other through well-defined interfaces:
 
 ```
@@ -78,13 +68,11 @@ Modules communicate with each other through well-defined interfaces:
 |                  |                 |                  |
 +------------------+                 +------------------+
 ```
-
 - **Public interfaces**: Exposed as services or controllers
 - **Private components**: Only accessible within the module
 - **Domain events**: For cross-module communication
 
 ### 2.2 Module Dependencies
-
 ```
 +-------------+     +-----------------+     +----------------+
 | User Module | --> | Game Module     | --> | Profile Module |
@@ -104,15 +92,12 @@ Modules communicate with each other through well-defined interfaces:
 ```
 
 ### 2.3 Cross-Module Communication Patterns
-
 1. **Direct Service Calls**: For synchronous operations
 2. **Domain Events**: For asynchronous operations
 3. **Event Bus**: For decoupling modules
 
 ## 3. Data Flow Architecture
-
 ### 3.1 Request Processing Flow
-
 1. **HTTP/WebSocket Request** → Presentation Layer
 2. **Authentication & Validation** → Middleware
 3. **Business Logic** → Module Services
@@ -122,7 +107,6 @@ Modules communicate with each other through well-defined interfaces:
 7. **Response Delivery** → Presentation Layer
 
 ### 3.2 Real-time Communication Flow
-
 ```
 +----------------+     +----------------+     +----------------+
 | Client         |     | Socket.IO      |     | Event Handler  |
@@ -139,9 +123,7 @@ Modules communicate with each other through well-defined interfaces:
 ```
 
 ## 4. Security Architecture
-
 ### 4.1 Authentication Flow
-
 ```
 +----------------+     +----------------+     +----------------+
 | Client         |     | Auth           |     | JWT Token      |
@@ -170,7 +152,6 @@ Modules communicate with each other through well-defined interfaces:
 *With restrictions based on ownership
 
 ### 4.3 Data Protection Strategy
-
 - **In Transit**: HTTPS/TLS for all communications
 - **At Rest**: MongoDB encryption for sensitive data
 - **JWT Tokens**: Short expiration, refresh token pattern
@@ -178,7 +159,6 @@ Modules communicate with each other through well-defined interfaces:
 - **Rate Limiting**: Prevent abuse and DoS attacks
 
 ## 5. Deployment Architecture
-
 ### 5.1 Development Environment
 
 ```
@@ -189,7 +169,6 @@ Modules communicate with each other through well-defined interfaces:
 ```
 
 ### 5.2 Production Environment (Future)
-
 ```
 +----------------+     +----------------+     +----------------+
 | Load Balancer  |     | Node.js App    |     | MongoDB        |
@@ -204,7 +183,6 @@ Modules communicate with each other through well-defined interfaces:
 ```
 
 ### 5.3 CI/CD Pipeline
-
 ```
 +----------------+     +----------------+     +----------------+
 | GitHub         |     | GitHub Actions |     | Test Environment|
@@ -220,23 +198,19 @@ Modules communicate with each other through well-defined interfaces:
 ```
 
 ## 6. Observability Architecture
-
 ### 6.1 Logging Strategy
-
 - **Request Logs**: HTTP requests, parameters, response codes
 - **Error Logs**: Detailed error information with stack traces
 - **Audit Logs**: User actions and system changes
 - **Performance Logs**: Timing for critical operations
 
 ### 6.2 Monitoring
-
 - **Health Checks**: API endpoint for system status
 - **Performance Metrics**: Response times, queue lengths
 - **Resource Usage**: Memory, CPU, database connections
 - **Business Metrics**: User activity, matchmaking success
 
 ### 6.3 Alerting
-
 - **Error Rate Thresholds**: Alert on sudden error increases
 - **Performance Degradation**: Alert on slow responses
 - **Security Incidents**: Alert on suspicious activities
