@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const config = require('../../../config');
 const { AuthenticationError } = require('../../../utils/errors');
+const crypto = require('crypto'); // Import crypto
 
 class TokenService {
     /**
@@ -11,7 +12,8 @@ class TokenService {
             id: user._id.toString(),
             email: user.email,
             username: user.username,
-            role: user.role
+            role: user.role,
+            jti: crypto.randomBytes(16).toString('hex') // Add JTI
         };
 
         return jwt.sign(payload, config.jwt.secret, {
@@ -27,7 +29,8 @@ class TokenService {
     generateRefreshToken(user) {
         const payload = {
             id: user._id.toString(),
-            tokenType: 'refresh'
+            tokenType: 'refresh',
+            jti: crypto.randomBytes(16).toString('hex') // Add JTI
         };
 
         return jwt.sign(payload, config.jwt.refreshSecret, {
@@ -73,10 +76,10 @@ class TokenService {
             return decoded;
         } catch (error) {
             // If it's our custom error for token type, rethrow it directly
-            if (error instanceof AuthenticationError) {
+            if (error instanceof AuthenticationError && error.message === 'Invalid token type') {
                 throw error;
             }
-            
+
             if (error.name === 'TokenExpiredError') {
                 throw new AuthenticationError('Refresh token has expired');
             } else if (error.name === 'JsonWebTokenError') {
@@ -92,30 +95,30 @@ class TokenService {
     getRefreshTokenExpiry() {
         // Parse the expiry string (e.g., '7d') to milliseconds
         const expiry = config.jwt.refreshTokenExpiry;
-        
+
         // Default value if format is invalid (7 days in milliseconds)
         const DEFAULT_EXPIRY = 7 * 24 * 60 * 60 * 1000;
-        
+
         // Check if expiry is a valid string
         if (!expiry || typeof expiry !== 'string' || expiry.length < 2) {
             return DEFAULT_EXPIRY;
         }
-        
+
         const unit = expiry.slice(-1);
         const valueStr = expiry.slice(0, -1);
-        
+
         // Ensure the value part is a number
         if (!/^\d+$/.test(valueStr)) {
             return DEFAULT_EXPIRY;
         }
-        
+
         const value = parseInt(valueStr, 10);
-        
+
         // Ensure parsed value is a valid number
         if (isNaN(value)) {
             return DEFAULT_EXPIRY;
         }
-    
+
         switch (unit) {
             case 'd':
                 return value * 24 * 60 * 60 * 1000;
