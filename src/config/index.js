@@ -2,7 +2,6 @@
 require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
-const logger = require('../utils/logger'); // Corrected: fs is not a constructor
 
 const env = process.env.NODE_ENV || 'development';
 
@@ -89,15 +88,15 @@ if (env === 'test') {
 
 // Debug output (optional, can be removed or conditional)
 if (env === 'development' || env === 'test') {
-  logger.debug('=== CONFIG DEBUG START ===');
-  logger.debug(`NODE_ENV: ${mergedConfig.env}`);
-  logger.debug(`Effective Log Level: ${mergedConfig.logging.level}`);
-  logger.debug(`CORS Origins: ${JSON.stringify(mergedConfig.cors.allowedOrigins)}`);
-  logger.debug(`Rate Limit Window MS: ${mergedConfig.rateLimit.windowMs}`);
-  logger.debug(`Rate Limit Max Requests: ${mergedConfig.rateLimit.maxRequests}`);
-  logger.debug(`Database URI: ${mergedConfig.database.uri}`);
-  logger.debug(`Database Options: ${JSON.stringify(mergedConfig.database.options)}`);
-  logger.debug('=== CONFIG DEBUG END ===');
+  console.log('=== CONFIG DEBUG START ===');
+  console.log(`NODE_ENV: ${mergedConfig.env}`);
+  console.log(`Effective Log Level: ${mergedConfig.logging.level}`);
+  console.log(`CORS Origins: ${JSON.stringify(mergedConfig.cors.allowedOrigins)}`);
+  console.log(`Rate Limit Window MS: ${mergedConfig.rateLimit.windowMs}`);
+  console.log(`Rate Limit Max Requests: ${mergedConfig.rateLimit.maxRequests}`);
+  console.log(`Database URI: ${mergedConfig.database.uri}`);
+  console.log(`Database Options: ${JSON.stringify(mergedConfig.database.options)}`);
+  console.log('=== CONFIG DEBUG END ===');
 }
 
 module.exports = mergedConfig;
