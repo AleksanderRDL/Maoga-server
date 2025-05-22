@@ -12,7 +12,8 @@ const baseConfig = {
   port: parseInt(process.env.PORT, 10) || 3000,
   jwt: {
     secret: process.env.JWT_SECRET || 'dev-jwt-secret-key-12345-change-in-production',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-key-67890-change-in-production',
+    refreshSecret:
+      process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-key-67890-change-in-production',
     accessTokenExpiry: process.env.JWT_ACCESS_TOKEN_EXPIRY || '15m',
     refreshTokenExpiry: process.env.JWT_REFRESH_TOKEN_EXPIRY || '7d',
     issuer: 'maoga-backend',
@@ -22,14 +23,17 @@ const baseConfig = {
     level: process.env.LOG_LEVEL || (env === 'development' ? 'debug' : 'info')
   },
   cors: {
-    allowedOrigins: process.env.CORS_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) ||
-            ['http://localhost:3000', 'http://localhost:8080'] // Default for dev
+    allowedOrigins: process.env.CORS_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()) || [
+      'http://localhost:3000',
+      'http://localhost:8080'
+    ] // Default for dev
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
-    maxRequests: env === 'test'
-      ? 1000 // Higher limit for tests unless specifically testing rate limits
-      : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100)
+    maxRequests:
+      env === 'test'
+        ? 1000 // Higher limit for tests unless specifically testing rate limits
+        : parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100
   },
   database: {
     // Default options that can be overridden by environment-specific files
@@ -49,7 +53,6 @@ if (fs.existsSync(envConfigFile)) {
   envConfig = require(envConfigFile);
 }
 
-
 // Deep merge baseConfig and envConfig, envConfig takes precedence
 // A simple merge strategy; for deeper nested objects, consider lodash.merge
 const mergedConfig = {
@@ -61,20 +64,28 @@ const mergedConfig = {
   cors: { ...baseConfig.cors, ...envConfig.cors },
   rateLimit: { ...baseConfig.rateLimit, ...envConfig.rateLimit },
   database: {
-    uri: envConfig.database?.uri || baseConfig.database?.uri || process.env.MONGODB_URI || (env === 'development' ? 'mongodb://localhost:27017/maoga_dev' : 'mongodb://localhost:27017/maoga_prod_default'),
+    uri:
+      envConfig.database?.uri ||
+      baseConfig.database?.uri ||
+      process.env.MONGODB_URI ||
+      (env === 'development'
+        ? 'mongodb://localhost:27017/maoga_dev'
+        : 'mongodb://localhost:27017/maoga_prod_default'),
     options: { ...baseConfig.database?.options, ...envConfig.database?.options }
   }
 };
 
 // Specifically for test environment, ensure MONGODB_TEST_URI is prioritized if set
 if (env === 'test') {
-  mergedConfig.database.uri = process.env.MONGODB_TEST_URI || envConfig.database?.uri || 'mongodb://localhost:27017/maoga_test';
+  mergedConfig.database.uri =
+    process.env.MONGODB_TEST_URI ||
+    envConfig.database?.uri ||
+    'mongodb://localhost:27017/maoga_test';
   // Ensure test logging level is applied if not already by envConfig
   if (!envConfig.logging || !envConfig.logging.level) {
     mergedConfig.logging.level = 'error';
   }
 }
-
 
 // Debug output (optional, can be removed or conditional)
 if (env === 'development' || env === 'test') {

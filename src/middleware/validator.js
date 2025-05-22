@@ -13,7 +13,7 @@ const validateRequest = (schema) => {
 
     if (error) {
       // Format validation errors
-      const details = error.details.map(detail => ({
+      const details = error.details.map((detail) => ({
         field: detail.path.join('.'),
         message: detail.message
       }));
@@ -38,7 +38,7 @@ const validateQuery = (schema) => {
     });
 
     if (error) {
-      const details = error.details.map(detail => ({
+      const details = error.details.map((detail) => ({
         field: detail.path.join('.'),
         message: detail.message
       }));
@@ -62,7 +62,7 @@ const validateParams = (schema) => {
     });
 
     if (error) {
-      const details = error.details.map(detail => ({
+      const details = error.details.map((detail) => ({
         field: detail.path.join('.'),
         message: detail.message
       }));

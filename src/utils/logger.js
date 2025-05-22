@@ -29,7 +29,7 @@ const logger = pino({
 });
 
 // Create child logger with request ID for request-specific logging
-logger.child = function(bindings) {
+logger.child = function (bindings) {
   return pino.child.call(this, bindings);
 };
 

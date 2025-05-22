@@ -38,7 +38,6 @@ async function startServer() {
     // Initialize Socket.IO (placeholder for Sprint 6)
     // const io = require('./services/socket').initialize(server);
     // logger.info('Socket.IO initialized');
-
   } catch (error) {
     logger.fatal('Failed to start server', { error: error.message });
     process.exit(1);
@@ -46,10 +45,12 @@ async function startServer() {
 }
 
 // Graceful shutdown handler
-function gracefulShutdown(signal) { // Removed async, but the inner logic is async
+function gracefulShutdown(signal) {
+  // Removed async, but the inner logic is async
   logger.info(`${signal} received. Starting graceful shutdown...`);
   if (server) {
-    server.close(async () => { // This callback is async
+    server.close(async () => {
+      // This callback is async
       logger.info('HTTP server closed');
       try {
         await databaseManager.disconnect(); // Await here is correct
@@ -65,7 +66,8 @@ function gracefulShutdown(signal) { // Removed async, but the inner logic is asy
       logger.error('Forced shutdown after timeout');
       process.exit(1);
     }, 10000);
-  } else { // If server isn't initialized, exit directly or handle as needed
+  } else {
+    // If server isn't initialized, exit directly or handle as needed
     process.exit(0);
   }
 }

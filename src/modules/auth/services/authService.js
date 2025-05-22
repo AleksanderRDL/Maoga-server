@@ -5,18 +5,15 @@ const logger = require('../../../utils/logger');
 
 class AuthService {
   /**
-     * Register a new user
-     */
+   * Register a new user
+   */
   async register(userData) {
     const { email, username, password, displayName } = userData;
 
     try {
       // Check if user already exists
       const existingUser = await User.findOne({
-        $or: [
-          { email: email.toLowerCase() },
-          { username: username }
-        ]
+        $or: [{ email: email.toLowerCase() }, { username: username }]
       });
 
       if (existingUser) {
@@ -65,8 +62,8 @@ class AuthService {
   }
 
   /**
-     * Login user
-     */
+   * Login user
+   */
   async login(credential, password) {
     try {
       // Find user by email or username
@@ -119,8 +116,8 @@ class AuthService {
   }
 
   /**
-     * Refresh access token
-     */
+   * Refresh access token
+   */
   async refreshToken(refreshToken) {
     try {
       // Verify refresh token
@@ -139,7 +136,7 @@ class AuthService {
 
       // Check if refresh token exists and is valid
       const tokenIndex = user.refreshTokens.findIndex(
-        tokenObj => tokenObj.token === refreshToken && tokenObj.expiresAt > new Date()
+        (tokenObj) => tokenObj.token === refreshToken && tokenObj.expiresAt > new Date()
       );
 
       if (tokenIndex === -1) {
@@ -177,8 +174,8 @@ class AuthService {
   }
 
   /**
-     * Logout user
-     */
+   * Logout user
+   */
   async logout(userId, refreshToken) {
     try {
       const user = await User.findById(userId);
@@ -189,7 +186,7 @@ class AuthService {
       // Remove the refresh token
       if (refreshToken) {
         user.refreshTokens = user.refreshTokens.filter(
-          tokenObj => tokenObj.token !== refreshToken
+          (tokenObj) => tokenObj.token !== refreshToken
         );
       } else {
         // Remove all refresh tokens (logout from all devices)
@@ -206,9 +203,9 @@ class AuthService {
   }
 
   /**
-     * Request password reset
-     * Note: Email functionality will be implemented in a future sprint
-     */
+   * Request password reset
+   * Note: Email functionality will be implemented in a future sprint
+   */
   async resetPasswordRequest(email) {
     try {
       const user = await User.findOne({ email: email.toLowerCase() });
@@ -231,9 +228,9 @@ class AuthService {
   }
 
   /**
-     * Confirm password reset
-     * Note: This is a placeholder for Sprint 2 implementation
-     */
+   * Confirm password reset
+   * Note: This is a placeholder for Sprint 2 implementation
+   */
   resetPasswordConfirm(_token, _newPassword) {
     // TODO: Implement in Sprint 2
     throw new Error('Password reset confirmation not yet implemented');

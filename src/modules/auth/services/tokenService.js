@@ -5,8 +5,8 @@ const crypto = require('crypto'); // Import crypto
 
 class TokenService {
   /**
-     * Generate access token
-     */
+   * Generate access token
+   */
   generateAccessToken(user) {
     const payload = {
       id: user._id.toString(),
@@ -24,8 +24,8 @@ class TokenService {
   }
 
   /**
-     * Generate refresh token
-     */
+   * Generate refresh token
+   */
   generateRefreshToken(user) {
     const payload = {
       id: user._id.toString(),
@@ -41,8 +41,8 @@ class TokenService {
   }
 
   /**
-     * Verify access token
-     */
+   * Verify access token
+   */
   verifyAccessToken(token) {
     try {
       return jwt.verify(token, config.jwt.secret, {
@@ -60,8 +60,8 @@ class TokenService {
   }
 
   /**
-     * Verify refresh token
-     */
+   * Verify refresh token
+   */
   verifyRefreshToken(token) {
     try {
       const decoded = jwt.verify(token, config.jwt.refreshSecret, {
@@ -90,8 +90,8 @@ class TokenService {
   }
 
   /**
-     * Get refresh token expiry in milliseconds
-     */
+   * Get refresh token expiry in milliseconds
+   */
   getRefreshTokenExpiry() {
     // Parse the expiry string (e.g., '7d') to milliseconds
     const expiry = config.jwt.refreshTokenExpiry;
@@ -120,16 +120,16 @@ class TokenService {
     }
 
     switch (unit) {
-    case 'd':
-      return value * 24 * 60 * 60 * 1000;
-    case 'h':
-      return value * 60 * 60 * 1000;
-    case 'm':
-      return value * 60 * 1000;
-    case 's':
-      return value * 1000;
-    default:
-      return DEFAULT_EXPIRY; // Default to 7 days
+      case 'd':
+        return value * 24 * 60 * 60 * 1000;
+      case 'h':
+        return value * 60 * 60 * 1000;
+      case 'm':
+        return value * 60 * 1000;
+      case 's':
+        return value * 1000;
+      default:
+        return DEFAULT_EXPIRY; // Default to 7 days
     }
   }
 }

@@ -16,11 +16,11 @@ const handleDuplicateFieldsDB = (err) => {
 };
 
 const handleValidationErrorDB = (mongooseError) => {
-  const errors = Object.values(mongooseError.errors).map(el => ({
+  const errors = Object.values(mongooseError.errors).map((el) => ({
     field: el.path,
     message: el.message
   }));
-    // Use your existing ValidationError which should extend AppError and be operational
+  // Use your existing ValidationError which should extend AppError and be operational
   return new ValidationError('Validation failed', 'VALIDATION_ERROR', errors);
 };
 
@@ -40,7 +40,7 @@ const sendErrorDev = (err, req, res) => {
       stack: err.stack,
       details: err.details || null,
       // For non-operational errors in dev, it's useful to see the original error object if it was wrapped
-      ...( !err.isOperational && err.originalError && { originalError: err.originalError })
+      ...(!err.isOperational && err.originalError && { originalError: err.originalError })
     }
   });
 };
@@ -79,19 +79,33 @@ const globalErrorHandler = (err, req, res, next) => {
   // Ensure statusCode and errorCode are set, and manage isOperational
   if (!(err instanceof AppError)) {
     // For generic errors or specific non-AppErrors we want to convert
-    if (config.env === 'production') { // Only transform these specific errors in prod for prod response
-      if (err.name === 'CastError') {operationalError = handleCastErrorDB(err);}
-      else if (err.code === 11000) {operationalError = handleDuplicateFieldsDB(err);}
-      else if (err.name === 'ValidationError') {operationalError = handleValidationErrorDB(err);} // Mongoose's own validation error
-      else if (err.name === 'JsonWebTokenError') {operationalError = handleJWTError();}
-      else if (err.name === 'TokenExpiredError') {operationalError = handleJWTExpiredError();}
-      else { // Generic non-AppError
+    if (config.env === 'production') {
+      // Only transform these specific errors in prod for prod response
+      if (err.name === 'CastError') {
+        operationalError = handleCastErrorDB(err);
+      } else if (err.code === 11000) {
+        operationalError = handleDuplicateFieldsDB(err);
+      } else if (err.name === 'ValidationError') {
+        operationalError = handleValidationErrorDB(err);
+      } // Mongoose's own validation error
+      else if (err.name === 'JsonWebTokenError') {
+        operationalError = handleJWTError();
+      } else if (err.name === 'TokenExpiredError') {
+        operationalError = handleJWTExpiredError();
+      } else {
+        // Generic non-AppError
         operationalError = new AppError(err.message, 500, 'UNKNOWN_ERROR', false);
         operationalError.stack = err.stack; // Preserve original stack
         operationalError.originalError = err; // Keep a reference if needed
       }
-    } else { // For dev/test, wrap generic errors but keep message/stack for easier debugging
-      operationalError = new AppError(err.message, err.statusCode || 500, err.errorCode || 'UNKNOWN_ERROR', false);
+    } else {
+      // For dev/test, wrap generic errors but keep message/stack for easier debugging
+      operationalError = new AppError(
+        err.message,
+        err.statusCode || 500,
+        err.errorCode || 'UNKNOWN_ERROR',
+        false
+      );
       operationalError.stack = err.stack;
       operationalError.originalError = err;
     }
@@ -119,7 +133,8 @@ const globalErrorHandler = (err, req, res, next) => {
 
   if (config.env === 'development' || config.env === 'test') {
     sendErrorDev(operationalError, req, res);
-  } else { // 'production'
+  } else {
+    // 'production'
     sendErrorProd(operationalError, req, res);
   }
 };
