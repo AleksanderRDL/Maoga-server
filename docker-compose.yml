@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: maoga-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongodb:27017/maoga_dev
+    env_file:
+      - .env
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./test:/usr/src/app/test
+      - ./logs:/usr/src/app/logs
+      - /usr/src/app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - maoga-network
+    command: npm run dev
+
+  mongodb:
+    image: mongo:8.0.4
+    container_name: maoga-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    environment:
+      - MONGO_INITDB_DATABASE=maoga_dev
+    networks:
+      - maoga-network
+
+volumes:
+  mongodb-data:
+  mongodb-config:
+
+networks:
+  maoga-network:
+    driver: bridge
