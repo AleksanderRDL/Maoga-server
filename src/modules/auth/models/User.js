@@ -142,13 +142,6 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ status: 1 });
-userSchema.index({ createdAt: -1 });
-userSchema.index({ 'gameProfiles.gameId': 1 });
-
 // Virtual for user's full profile URL (placeholder for future CDN integration)
 userSchema.virtual('profileImageUrl').get(function() {
     if (this.profile.profileImage) {

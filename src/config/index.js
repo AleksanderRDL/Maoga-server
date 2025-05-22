@@ -6,7 +6,14 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // Load environment-specific config
 const env = process.env.NODE_ENV || 'development';
-const envConfig = require(`./environments/${env}`);
+let envConfig;
+try {
+    envConfig = require(`./environments/${env}.js`);
+} catch (error) {
+    console.error(`Failed to load environment config for: ${env}`);
+    console.error('Available files:', require('fs').readdirSync(path.join(__dirname, 'environments')));
+    throw error;
+}
 
 // Base configuration
 const baseConfig = {
