@@ -56,7 +56,7 @@ class DatabaseManager {
     } catch (error) {
       this.isConnected = false;
       // Log the full error object to see all its properties
-      console.error("Full Mongoose Connection Error Object:", error); // Add this line
+      console.error('Full Mongoose Connection Error Object:', error); // Add this line
       logger.error('Failed to connect to MongoDB', {
         errorMessage: error.message, // Ensure you are logging error.message
         errorStack: error.stack,   // And potentially the stack
