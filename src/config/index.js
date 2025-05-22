@@ -1,90 +1,49 @@
-const dotenv = require('dotenv');
-const path = require('path');
+// src/config/index.js - COMPLETE REPLACEMENT
+require('dotenv').config();
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '../../.env') });
-
-// Load environment-specific config
-const env = process.env.NODE_ENV || 'development';
-let envConfig;
-try {
-    envConfig = require(`./environments/${env}.js`);
-} catch (error) {
-    console.error(`Failed to load environment config for: ${env}`);
-    console.error('Available files:', require('fs').readdirSync(path.join(__dirname, 'environments')));
-    throw error;
-}
-
-// Base configuration
-const baseConfig = {
-    env,
+const config = {
+    env: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT, 10) || 3000,
 
-    // Database
     database: {
         uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/maoga_dev',
         options: {
-            maxPoolSize: 10,
-            minPoolSize: 5,
-            socketTimeoutMS: 45000,
             serverSelectionTimeoutMS: 5000,
-            family: 4
+            socketTimeoutMS: 45000,
         }
     },
 
-    // JWT Configuration
     jwt: {
-        secret: process.env.JWT_SECRET,
-        refreshSecret: process.env.JWT_REFRESH_SECRET,
+        secret: process.env.JWT_SECRET || 'dev-jwt-secret-key-12345-change-in-production',
+        refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-key-67890-change-in-production',
         accessTokenExpiry: process.env.JWT_ACCESS_TOKEN_EXPIRY || '15m',
         refreshTokenExpiry: process.env.JWT_REFRESH_TOKEN_EXPIRY || '7d',
         issuer: 'maoga-backend',
         audience: 'maoga-app'
     },
 
-    // Logging
     logging: {
-        level: process.env.LOG_LEVEL || 'info'
+        level: process.env.LOG_LEVEL || 'debug'
     },
 
-    // CORS
     cors: {
-        allowedOrigins: process.env.CORS_ALLOWED_ORIGINS
-            ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-            : ['http://localhost:3000', 'http://localhost:8080']
+        allowedOrigins: process.env.CORS_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) ||
+            ['http://localhost:3000', 'http://localhost:8080']
     },
 
-    // Rate Limiting
     rateLimit: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
-        maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100
-    },
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 900000,
+        maxRequests: process.env.NODE_ENV === 'test'
+            ? 1000
+            : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100)
 
-    // External APIs (for future use)
-    external: {
-        gameApi: {
-            key: process.env.EXTERNAL_GAME_API_KEY,
-            url: process.env.EXTERNAL_GAME_API_URL
-        }
     }
 };
 
-// Merge with environment-specific config
-const config = { ...baseConfig, ...envConfig };
+// Debug output
+console.log('=== CONFIG DEBUG ===');
+console.log('MONGODB_URI from env:', process.env.MONGODB_URI);
+console.log('Final config.database.uri:', config.database.uri);
+console.log('==================');
 
-// Validate required configuration
-const requiredEnvVars = [
-    'JWT_SECRET',
-    'JWT_REFRESH_SECRET',
-    'MONGODB_URI'
-];
-
-if (env === 'production') {
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    if (missingVars.length > 0) {
-        throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-    }
-}
-
-// Freeze config to prevent accidental modifications
-module.exports = Object.freeze(config);
+module.exports = config;

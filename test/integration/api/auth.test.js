@@ -268,9 +268,11 @@ describe('Auth API', () => {
                     .expect(401);
             }
 
-            // 6th request should be rate limited
+            // For the rate limiting test, temporarily override the skip function
+            // by setting a custom header that your middleware can check
             const res = await request(app)
                 .post('/api/auth/login')
+                .set('X-Test-Rate-Limit', 'true') // Add a custom header for this test
                 .send({
                     credential: 'test@example.com',
                     password: 'wrongpassword'

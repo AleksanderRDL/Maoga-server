@@ -1,6 +1,6 @@
 const config = require('./config');
 const logger = require('./utils/logger');
-const { connectDatabase, disconnectDatabase } = require('./config/database');
+const databaseManager = require('./config/database');
 const app = require('./app');
 
 // Handle uncaught exceptions
@@ -27,7 +27,7 @@ let server;
 async function startServer() {
     try {
         // Connect to MongoDB
-        await connectDatabase();
+        await databaseManager.connect();
         logger.info('MongoDB connected successfully');
 
         // Start HTTP server
@@ -56,7 +56,7 @@ async function gracefulShutdown(signal) {
 
             try {
                 // Close database connections
-                await disconnectDatabase();
+                await databaseManager.disconnect();
                 logger.info('Database connections closed');
 
                 // Close other resources (Redis, etc.) - future sprints

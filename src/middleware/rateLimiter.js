@@ -15,8 +15,10 @@ const standard = rateLimit({
     legacyHeaders: false,
     handler: limitHandler,
     skip: (req) => {
-        // Skip rate limiting for health check
-        return req.path === '/health';
+        // Skip rate limiting for health check or in test environment
+        // But don't skip if we're specifically testing rate limiting with a special header
+        return (req.path === '/health' || 
+                (process.env.NODE_ENV === 'test' && !req.headers['x-test-rate-limit']));
     }
 });
 

@@ -2,61 +2,78 @@ const mongoose = require('mongoose');
 const config = require('./index');
 const logger = require('../utils/logger');
 
-let isConnected = false;
-
-async function connectDatabase() {
-    if (isConnected) {
-        logger.warn('Database connection already established');
-        return;
+class DatabaseManager {
+    constructor() {
+        this.isConnected = false;
+        this.connectionPromise = null;
     }
 
-    try {
-        // Set mongoose options
-        mongoose.set('strictQuery', false);
+    async connect() {
+        if (this.connectionPromise) {
+            return this.connectionPromise;
+        }
+        this.connectionPromise = this._connect();
+        return this.connectionPromise;
+    }
 
-        // Event listeners for mongoose connection
-        mongoose.connection.on('connected', () => {
-            logger.info('Mongoose connected to MongoDB');
-            isConnected = true;
-        });
+    async _connect() {
+        try {
+            // Debug logging
+            logger.info('Attempting MongoDB connection', {
+                uri: config.database.uri,
+                options: config.database.options
+            });
 
-        mongoose.connection.on('error', (err) => {
-            logger.error('Mongoose connection error:', err);
-            isConnected = false;
-        });
+            await mongoose.connect(config.database.uri, config.database.options);
+            this.isConnected = true;
 
-        mongoose.connection.on('disconnected', () => {
-            logger.warn('Mongoose disconnected from MongoDB');
-            isConnected = false;
-        });
+            logger.info('MongoDB connected successfully', {
+                host: mongoose.connection.host,
+                port: mongoose.connection.port,
+                database: mongoose.connection.name
+            });
 
-        // Connect to MongoDB
-        await mongoose.connect(config.database.uri, config.database.options);
+            // Connection event handlers
+            mongoose.connection.on('error', (error) => {
+                logger.error('MongoDB connection error', { error: error.message });
+            });
 
-    } catch (error) {
-        logger.error('Failed to connect to MongoDB', { error: error.message });
-        throw error;
+            mongoose.connection.on('disconnected', () => {
+                this.isConnected = false;
+                logger.warn('MongoDB disconnected');
+            });
+
+            mongoose.connection.on('reconnected', () => {
+                this.isConnected = true;
+                logger.info('MongoDB reconnected');
+            });
+
+            return mongoose.connection;
+        } catch (error) {
+            this.isConnected = false;
+            logger.error('Failed to connect to MongoDB', {
+                error: error.message,
+                uri: config.database.uri
+            });
+            throw error;
+        }
+    }
+
+    async disconnect() {
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.disconnect();
+            this.isConnected = false;
+            logger.info('MongoDB disconnected gracefully');
+        }
+    }
+
+    getConnection() {
+        return mongoose.connection;
+    }
+
+    isHealthy() {
+        return this.isConnected && mongoose.connection.readyState === 1;
     }
 }
 
-async function disconnectDatabase() {
-    if (!isConnected) {
-        logger.warn('No database connection to close');
-        return;
-    }
-
-    try {
-        await mongoose.disconnect();
-        isConnected = false;
-        logger.info('Database connection closed');
-    } catch (error) {
-        logger.error('Error closing database connection', { error: error.message });
-        throw error;
-    }
-}
-
-module.exports = {
-    connectDatabase,
-    disconnectDatabase,
-    mongoose
-};
+module.exports = new DatabaseManager();

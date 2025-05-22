@@ -72,6 +72,11 @@ class TokenService {
 
             return decoded;
         } catch (error) {
+            // If it's our custom error for token type, rethrow it directly
+            if (error instanceof AuthenticationError) {
+                throw error;
+            }
+            
             if (error.name === 'TokenExpiredError') {
                 throw new AuthenticationError('Refresh token has expired');
             } else if (error.name === 'JsonWebTokenError') {
@@ -87,9 +92,30 @@ class TokenService {
     getRefreshTokenExpiry() {
         // Parse the expiry string (e.g., '7d') to milliseconds
         const expiry = config.jwt.refreshTokenExpiry;
+        
+        // Default value if format is invalid (7 days in milliseconds)
+        const DEFAULT_EXPIRY = 7 * 24 * 60 * 60 * 1000;
+        
+        // Check if expiry is a valid string
+        if (!expiry || typeof expiry !== 'string' || expiry.length < 2) {
+            return DEFAULT_EXPIRY;
+        }
+        
         const unit = expiry.slice(-1);
-        const value = parseInt(expiry.slice(0, -1));
-
+        const valueStr = expiry.slice(0, -1);
+        
+        // Ensure the value part is a number
+        if (!/^\d+$/.test(valueStr)) {
+            return DEFAULT_EXPIRY;
+        }
+        
+        const value = parseInt(valueStr, 10);
+        
+        // Ensure parsed value is a valid number
+        if (isNaN(value)) {
+            return DEFAULT_EXPIRY;
+        }
+    
         switch (unit) {
             case 'd':
                 return value * 24 * 60 * 60 * 1000;
@@ -100,7 +126,7 @@ class TokenService {
             case 's':
                 return value * 1000;
             default:
-                return 7 * 24 * 60 * 60 * 1000; // Default to 7 days
+                return DEFAULT_EXPIRY; // Default to 7 days
         }
     }
 }
