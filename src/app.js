@@ -21,18 +21,18 @@ app.use(helmet());
 
 // CORS configuration
 const corsOptions = {
-    origin: function (origin, callback) {
-        const allowedOrigins = config.cors.allowedOrigins;
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']
+  origin: function (origin, callback) {
+    const allowedOrigins = config.cors.allowedOrigins;
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']
 };
 app.use(cors(corsOptions));
 
@@ -48,16 +48,16 @@ app.use(requestLogger);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'success',
-        data: {
-            status: 'UP',
-            timestamp: new Date().toISOString(),
-            uptime: process.uptime(),
-            environment: config.env,
-            version: process.env.npm_package_version || '0.1.0'
-        }
-    });
+  res.status(200).json({
+    status: 'success',
+    data: {
+      status: 'UP',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: config.env,
+      version: process.env.npm_package_version || '0.1.0'
+    }
+  });
 });
 
 // API routes
@@ -73,7 +73,7 @@ app.use('/api', authModule.routes);
 
 // 404 handler - must be after all routes
 app.all('*', (req, res, next) => {
-    next(new NotFoundError(`Cannot find ${req.originalUrl} on this server`));
+  next(new NotFoundError(`Cannot find ${req.originalUrl} on this server`));
 });
 
 // Global error handler - must be last middleware

@@ -4,6 +4,9 @@ module.exports = {
         es2021: true,
         mocha: true
     },
+    plugins: [
+        'security' // This makes the rules available
+    ],
     extends: [
         'eslint:recommended',
         'prettier'
