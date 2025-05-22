@@ -15,10 +15,8 @@ const standard = rateLimit({
     legacyHeaders: false,
     handler: limitHandler,
     skip: (req) => {
-        // Skip rate limiting for health check or in test environment
-        // But don't skip if we're specifically testing rate limiting with a special header
-        return (req.path === '/health' || 
-                (process.env.NODE_ENV === 'test' && !req.headers['x-test-rate-limit']));
+        // Skip rate limiting in test environment unless specifically testing rate limits
+        return process.env.NODE_ENV === 'test' && !req.headers['x-test-rate-limit'];
     }
 });
 
@@ -29,7 +27,11 @@ const strict = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     handler: limitHandler,
-    skipFailedRequests: false // Count failed requests too
+    skipFailedRequests: false,
+    skip: (req) => {
+        // Skip rate limiting in test environment unless specifically testing rate limits
+        return process.env.NODE_ENV === 'test' && !req.headers['x-test-rate-limit'];
+    }
 });
 
 // Relaxed rate limiter - for read-heavy endpoints
@@ -38,7 +40,11 @@ const relaxed = rateLimit({
     max: config.rateLimit.maxRequests * 2, // Double the standard limit
     standardHeaders: true,
     legacyHeaders: false,
-    handler: limitHandler
+    handler: limitHandler,
+    skip: (req) => {
+        // Skip rate limiting in test environment
+        return process.env.NODE_ENV === 'test';
+    }
 });
 
 module.exports = {
