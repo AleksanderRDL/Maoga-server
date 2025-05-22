@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 const config = require('./index');
 const logger = require('../utils/logger');
 
+if (config.env === 'development') {
+  mongoose.set('debug', true);
+}
+
 class DatabaseManager {
   constructor() {
     this.isConnected = false;
@@ -51,8 +55,13 @@ class DatabaseManager {
       return mongoose.connection;
     } catch (error) {
       this.isConnected = false;
+      // Log the full error object to see all its properties
+      console.error("Full Mongoose Connection Error Object:", error); // Add this line
       logger.error('Failed to connect to MongoDB', {
-        error: error.message,
+        errorMessage: error.message, // Ensure you are logging error.message
+        errorStack: error.stack,   // And potentially the stack
+        errorCode: error.code,     // And code if available
+        errorName: error.name,     // And name
         uri: config.database.uri
       });
       throw error;
