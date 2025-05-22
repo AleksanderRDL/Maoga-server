@@ -9,7 +9,6 @@ module.exports = {
         'plugin:security/recommended',
         'prettier'
     ],
-    plugins: ['security'],
     parserOptions: {
         ecmaVersion: 2021,
         sourceType: 'module'
