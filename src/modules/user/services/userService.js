@@ -1,15 +1,11 @@
+// src/modules/user/services/userService.js
 const User = require('../../auth/models/User');
 // eslint-disable-next-line no-unused-vars
 const { NotFoundError, ConflictError, BadRequestError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 
 // Define allowed notification types for validation
-const ALLOWED_NOTIFICATION_TYPES = [
-  'friendRequest', // Example type
-  'newMessage', // Example type
-  'teamInvite' // Example type
-  // Add all other valid notification types your application uses
-];
+const ALLOWED_NOTIFICATION_TYPES = ['friendRequests', 'matchFound', 'lobbyInvites', 'messages'];
 
 class UserService {
   /**
