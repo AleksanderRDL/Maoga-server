@@ -93,17 +93,14 @@
 
 * **Technical Steps & Considerations**:
     * **Game Schema & Model**:
-        * Define `Game` schema (`database-models.md`) with fields like name, slug, description, coverImage, genres, platforms, releaseDate, external IDs.
+        * Define `Game` schema (`database-models.md`) with fields like name, slug, description, coverImage, popularity, genres, platforms, releaseDate, external IDs.
     * **Game Service & Controller (`game` module)**:
-        * Develop integration with an external game API (IGDB/RAWG).
-        * **Configuration and Secrets Management (Key Consideration 2)**: Securely store external API keys.
-        * Implement game search/filtering API endpoints: List games (`/api/games`) with pagination, filtering; Get game details (`/api/games/{gameId}`).
-    * **Background Job for Data Sync (Key Consideration 6)**:
-        * Implement a background job (e.g., using `node-cron` for simplicity initially, or consider BullMQ if Redis is planned soon) for periodic game data updates from the external API.
-        * **Error Handling**: Robustly handle failures from the external API during sync (retries, circuit breaker pattern consideration).
-        * **Logging (Key Consideration 1)**: Log start/end of sync jobs, number of games updated/added, any errors during sync. Monitor the health and performance of this job.
+        * Fetch 2000 most popular games from IGDB and transform and store them in my local database
+        * If a user searches for a game and it is not there, he should be able to trigger a call to the external api(IGDB) to fetch information about that game. If this game do exist, it should add it to the local database.
+          This way new entries should trickle in with no background sync needed regurlary
+        * Make sure we dont in any form misuse their apis
     * **Caching Layer**:
-        * Implement a caching layer (in-memory with `node-cache` or Redis if available) for game data to reduce DB load and external API calls. Cache popular games or recently accessed game details.
+        * Implement a caching layer (in-memory with `node-cache` or Redis if available) for game data to reduce DB load. Cache popular games or recently accessed game details.
     * **Testing (Key Consideration 7)**:
         * Unit tests for `GameService`, mocking external API calls. Test caching logic. Test background job logic (can it be triggered and run a cycle?).
     * **API Documentation**: Update `api-specs.md`.
