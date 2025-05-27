@@ -1,6 +1,11 @@
 const User = require('../models/User');
 const tokenService = require('./tokenService');
-const { ConflictError, AuthenticationError, NotFoundError } = require('../../../utils/errors');
+const {
+  ConflictError,
+  AuthenticationError,
+  NotFoundError,
+  BadRequestError
+} = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 const crypto = require('crypto');
 

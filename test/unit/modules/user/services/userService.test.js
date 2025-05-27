@@ -24,28 +24,48 @@ describe('UserService', () => {
         status: 'active'
       };
 
-      const queryStub = {
-        select: sandbox.stub().returnsThis()
+      // Create a mock Mongoose Query object
+      const mockQuery = {
+        select: sandbox.stub().returnsThis(), // Make select chainable
+        // exec() is what gets called by await on a Mongoose query object implicitly or explicitly.
+        // Or you can make the mockQuery itself thenable.
+        exec: sandbox.stub().resolves(mockUser)
       };
-      sandbox.stub(User, 'findById').returns(queryStub);
-      queryStub.select.resolves(mockUser);
+      // Make the mockQuery thenable by adding a then method that delegates to exec's promise
+      // This ensures `await query` in your service works as expected with the stub.
+      mockQuery.then = function (onFulfilled, onRejected) {
+        return this.exec().then(onFulfilled, onRejected);
+      };
+      mockQuery.catch = function (onRejected) {
+        return this.then(null, onRejected);
+      };
 
-      const result = await userService.getUserById('userId123', true);
+      sandbox.stub(User, 'findById').returns(mockQuery);
 
-      expect(result).to.equal(mockUser);
+      const result = await userService.getUserById('userId123', true); // includePrivateData = true
+
       expect(User.findById.calledWith('userId123')).to.be.true;
-      expect(queryStub.select.calledWith('+refreshTokens')).to.be.true;
+      expect(mockQuery.select.calledWith('+refreshTokens')).to.be.true;
+      expect(result).to.deep.equal(mockUser); // Use deep.equal for object comparison
     });
 
     it('should throw NotFoundError if user not found', async () => {
-      const queryStub = {
-        select: sandbox.stub().returnsThis()
+      const mockQuery = {
+        select: sandbox.stub().returnsThis(),
+        exec: sandbox.stub().resolves(null) // Simulate user not found
       };
-      sandbox.stub(User, 'findById').returns(queryStub);
-      queryStub.select.resolves(null);
+      mockQuery.then = function (onFulfilled, onRejected) {
+        return this.exec().then(onFulfilled, onRejected);
+      };
+      mockQuery.catch = function (onRejected) {
+        return this.then(null, onRejected);
+      };
+
+      sandbox.stub(User, 'findById').returns(mockQuery);
 
       try {
         await userService.getUserById('nonexistent');
+        // If the above line does not throw, this will fail the test
         expect.fail('Should have thrown NotFoundError');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundError);
@@ -54,22 +74,26 @@ describe('UserService', () => {
     });
 
     it('should throw NotFoundError if user is deleted', async () => {
-      const mockUser = {
-        _id: 'userId123',
-        status: 'deleted'
+      const mockUser = { _id: 'userId123', status: 'deleted' };
+      const mockQuery = {
+        select: sandbox.stub().returnsThis(),
+        exec: sandbox.stub().resolves(mockUser) // Simulate user found but deleted
+      };
+      mockQuery.then = function (onFulfilled, onRejected) {
+        return this.exec().then(onFulfilled, onRejected);
+      };
+      mockQuery.catch = function (onRejected) {
+        return this.then(null, onRejected);
       };
 
-      const queryStub = {
-        select: sandbox.stub().returnsThis()
-      };
-      sandbox.stub(User, 'findById').returns(queryStub);
-      queryStub.select.resolves(mockUser);
+      sandbox.stub(User, 'findById').returns(mockQuery);
 
       try {
         await userService.getUserById('userId123');
         expect.fail('Should have thrown NotFoundError');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundError);
+        expect(error.message).to.equal('User not found');
       }
     });
   });
