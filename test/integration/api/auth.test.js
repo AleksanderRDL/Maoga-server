@@ -345,26 +345,178 @@ describe('Auth API', () => {
     });
   });
 
-  describe('Password Reset Placeholders', () => {
-    it('POST /api/auth/reset-password should return success message (placeholder)', async () => {
-      const res = await request(app)
-        .post('/api/auth/reset-password')
-        .send({ email: 'test@example.com' })
-        .expect(200);
+  describe('Password Reset Flow', () => {
+    let testUser;
 
-      expect(res.body.status).to.equal('success');
-      expect(res.body.data.message).to.equal('If the email exists, a reset link will be sent');
+    beforeEach(async () => {
+      // Create a user for password reset tests
+      testUser = await User.create({
+        email: 'resettest@example.com',
+        username: 'resetuser',
+        hashedPassword: 'OldPassword123!',
+        status: 'active'
+      });
     });
 
-    it('POST /api/auth/reset-password/confirm should indicate not implemented (placeholder)', async () => {
-      // This endpoint currently throws an error in the service layer
-      const res = await request(app)
-        .post('/api/auth/reset-password/confirm')
-        .send({ token: 'anytoken', newPassword: 'NewPassword123!' })
-        .expect(500); // Because the service throws a generic Error
+    describe('POST /api/auth/reset-password', () => {
+      it('should initiate password reset for existing user', async () => {
+        const res = await request(app)
+          .post('/api/auth/reset-password')
+          .send({ email: testUser.email })
+          .expect(200);
 
-      expect(res.body.status).to.equal('error');
-      expect(res.body.error.message).to.include('Password reset confirmation not yet implemented');
+        expect(res.body.status).to.equal('success');
+        expect(res.body.data.message).to.equal('If the email exists, a reset link will be sent');
+
+        // In test/dev environment, token is returned
+        if (process.env.NODE_ENV !== 'production') {
+          expect(res.body.data).to.have.property('resetToken');
+        }
+
+        // Verify token was saved to user
+        const updatedUser = await User.findById(testUser._id).select(
+          '+passwordResetToken +passwordResetExpires'
+        );
+        expect(updatedUser.passwordResetToken).to.exist;
+        expect(updatedUser.passwordResetExpires).to.exist;
+        expect(updatedUser.passwordResetExpires).to.be.greaterThan(new Date());
+      });
+
+      it('should return same message for non-existent email', async () => {
+        const res = await request(app)
+          .post('/api/auth/reset-password')
+          .send({ email: 'nonexistent@example.com' })
+          .expect(200);
+
+        expect(res.body.status).to.equal('success');
+        expect(res.body.data.message).to.equal('If the email exists, a reset link will be sent');
+      });
+
+      it('should not reset password for inactive account', async () => {
+        await User.updateOne({ _id: testUser._id }, { status: 'suspended' });
+
+        const res = await request(app)
+          .post('/api/auth/reset-password')
+          .send({ email: testUser.email })
+          .expect(200);
+
+        expect(res.body.status).to.equal('success');
+        expect(res.body.data.message).to.equal('If the email exists, a reset link will be sent');
+
+        // Verify no token was set
+        const user = await User.findById(testUser._id).select('+passwordResetToken');
+        expect(user.passwordResetToken).to.not.exist;
+      });
+    });
+
+    describe('POST /api/auth/reset-password/confirm', () => {
+      let resetToken;
+
+      beforeEach(async () => {
+        // Initiate password reset to get a token
+        const res = await request(app)
+          .post('/api/auth/reset-password')
+          .send({ email: testUser.email });
+
+        resetToken = res.body.data.resetToken;
+      });
+
+      it('should reset password with valid token', async () => {
+        const newPassword = 'NewPassword123!';
+
+        const res = await request(app)
+          .post('/api/auth/reset-password/confirm')
+          .send({
+            token: resetToken,
+            newPassword: newPassword
+          })
+          .expect(200);
+
+        expect(res.body.status).to.equal('success');
+        expect(res.body.data.message).to.equal('Password reset successfully');
+
+        // Verify can login with new password
+        const loginRes = await request(app)
+          .post('/api/auth/login')
+          .send({
+            credential: testUser.email,
+            password: newPassword
+          })
+          .expect(200);
+
+        expect(loginRes.body.status).to.equal('success');
+
+        // Verify reset token was cleared
+        const user = await User.findById(testUser._id).select('+passwordResetToken +refreshTokens');
+        expect(user.passwordResetToken).to.not.exist;
+        expect(user.refreshTokens).to.have.lengthOf(1); // New token from login
+      });
+
+      it('should fail with invalid token', async () => {
+        const res = await request(app)
+          .post('/api/auth/reset-password/confirm')
+          .send({
+            token: 'invalid-token',
+            newPassword: 'NewPassword123!'
+          })
+          .expect(400);
+
+        expect(res.body.status).to.equal('error');
+        expect(res.body.error.message).to.equal('Invalid or expired reset token');
+      });
+
+      it('should fail with expired token', async () => {
+        // Manually expire the token
+        await User.updateOne(
+          { _id: testUser._id },
+          { passwordResetExpires: new Date(Date.now() - 1000) }
+        );
+
+        const res = await request(app)
+          .post('/api/auth/reset-password/confirm')
+          .send({
+            token: resetToken,
+            newPassword: 'NewPassword123!'
+          })
+          .expect(400);
+
+        expect(res.body.status).to.equal('error');
+        expect(res.body.error.message).to.equal('Invalid or expired reset token');
+      });
+
+      it('should validate new password', async () => {
+        const res = await request(app)
+          .post('/api/auth/reset-password/confirm')
+          .send({
+            token: resetToken,
+            newPassword: 'weak'
+          })
+          .expect(422);
+
+        expect(res.body.status).to.equal('error');
+        expect(res.body.error.code).to.equal('VALIDATION_ERROR');
+      });
+
+      it('should invalidate all refresh tokens after password reset', async () => {
+        // First login to get some refresh tokens
+        await request(app).post('/api/auth/login').send({
+          credential: testUser.email,
+          password: 'OldPassword123!'
+        });
+
+        // Reset password
+        await request(app)
+          .post('/api/auth/reset-password/confirm')
+          .send({
+            token: resetToken,
+            newPassword: 'NewPassword123!'
+          })
+          .expect(200);
+
+        // Check that all refresh tokens were cleared
+        const user = await User.findById(testUser._id).select('+refreshTokens');
+        expect(user.refreshTokens).to.have.lengthOf(0);
+      });
     });
   });
 

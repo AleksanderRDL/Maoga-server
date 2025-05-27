@@ -9,6 +9,7 @@ const { NotFoundError } = require('./utils/errors');
 
 // Module imports
 const authModule = require('./modules/auth');
+const userModule = require('./modules/user');
 
 // Create Express app
 const app = express();
@@ -62,6 +63,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api', authModule.routes);
+app.use('/api/users', userModule.routes);
 
 // Future module routes will be added here:
 // app.use('/api/users', userModule.routes);

@@ -2,6 +2,7 @@ const User = require('../models/User');
 const tokenService = require('./tokenService');
 const { ConflictError, AuthenticationError, NotFoundError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
+const crypto = require('crypto');
 
 class AuthService {
   /**
@@ -204,11 +205,12 @@ class AuthService {
 
   /**
    * Request password reset
-   * Note: Email functionality will be implemented in a future sprint
    */
   async resetPasswordRequest(email) {
     try {
-      const user = await User.findOne({ email: email.toLowerCase() });
+      const user = await User.findOne({ email: email.toLowerCase() }).select(
+        '+passwordResetToken +passwordResetExpires'
+      );
 
       if (!user) {
         // Don't reveal if user exists or not
@@ -216,11 +218,39 @@ class AuthService {
         return { message: 'If the email exists, a reset link will be sent' };
       }
 
-      // TODO: Implement password reset token generation and email sending
-      // For now, just log the action
-      logger.info('Password reset requested', { userId: user.id, email });
+      // Check if user is active
+      if (user.status !== 'active') {
+        logger.warn('Password reset requested for inactive account', {
+          email,
+          status: user.status
+        });
+        return { message: 'If the email exists, a reset link will be sent' };
+      }
 
-      return { message: 'If the email exists, a reset link will be sent' };
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+
+      // Hash token before storing
+      const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+      // Save hashed token and expiry (1 hour)
+      user.passwordResetToken = hashedToken;
+      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+      await user.save();
+
+      // TODO: Send email with reset link containing resetToken
+      // For now, log the token (remove in production)
+      logger.info('Password reset token generated', {
+        userId: user.id,
+        email,
+        tokenForTesting: resetToken // REMOVE IN PRODUCTION
+      });
+
+      return {
+        message: 'If the email exists, a reset link will be sent',
+        // Return token only in development/test
+        ...(process.env.NODE_ENV !== 'production' && { resetToken })
+      };
     } catch (error) {
       logger.error('Password reset request failed', { error: error.message, email });
       throw error;
@@ -229,11 +259,39 @@ class AuthService {
 
   /**
    * Confirm password reset
-   * Note: This is a placeholder for Sprint 2 implementation
    */
-  resetPasswordConfirm(_token, _newPassword) {
-    // TODO: Implement in Sprint 2
-    throw new Error('Password reset confirmation not yet implemented');
+  async resetPasswordConfirm(token, newPassword) {
+    try {
+      // Hash the provided token
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+      // Find user with valid token
+      const user = await User.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: Date.now() }
+      }).select('+passwordResetToken +passwordResetExpires +hashedPassword');
+
+      if (!user) {
+        throw new BadRequestError('Invalid or expired reset token');
+      }
+
+      // Update password
+      user.hashedPassword = newPassword; // Will be hashed by pre-save hook
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+
+      // Invalidate all refresh tokens (security measure)
+      user.refreshTokens = [];
+
+      await user.save();
+
+      logger.info('Password reset completed', { userId: user.id });
+
+      return { message: 'Password reset successfully' };
+    } catch (error) {
+      logger.error('Password reset confirmation failed', { error: error.message });
+      throw error;
+    }
   }
 }
 

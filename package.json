@@ -9,6 +9,7 @@
     "test": "cross-env NODE_ENV=test mocha --recursive test --timeout 10000 --exit",
     "test:unit": "cross-env NODE_ENV=test mocha --recursive test/unit --timeout 10000 --exit",
     "test:integration": "cross-env NODE_ENV=test mocha --recursive test/integration --timeout 10000 --exit",
+    "test:user": "cross-env NODE_ENV=test mocha --recursive test/**/*user* --timeout 10000 --exit",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\"",
