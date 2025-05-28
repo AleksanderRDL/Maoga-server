@@ -10,6 +10,7 @@ const { NotFoundError } = require('./utils/errors');
 // Module imports
 const authModule = require('./modules/auth');
 const userModule = require('./modules/user');
+const gameModule = require('./modules/game');
 
 // Create Express app
 const app = express();
@@ -64,10 +65,9 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api', authModule.routes);
 app.use('/api/users', userModule.routes);
+app.use('/api', gameModule.routes);
 
 // Future module routes will be added here:
-// app.use('/api/users', userModule.routes);
-// app.use('/api/games', gameModule.routes);
 // app.use('/api/matchmaking', matchmakingModule.routes);
 // app.use('/api/lobbies', lobbyModule.routes);
 // app.use('/api/chat', chatModule.routes);

@@ -2,6 +2,7 @@ const config = require('./config');
 const logger = require('./utils/logger');
 const databaseManager = require('./config/database');
 const app = require('./app');
+const gameSyncJob = require('./jobs/gameSyncJob');
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -34,6 +35,12 @@ async function startServer() {
     server = app.listen(config.port, () => {
       logger.info(`Server is running on port ${config.port} in ${config.env} mode`);
     });
+
+    // Start background jobs
+    if (config.jobs.gameSyncEnabled && config.env !== 'test') {
+      gameSyncJob.schedule();
+      logger.info('Game sync job scheduled');
+    }
 
     // Initialize Socket.IO (placeholder for Sprint 6)
     // const io = require('./services/socket').initialize(server);

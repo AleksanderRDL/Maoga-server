@@ -40,6 +40,17 @@ const baseConfig = {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000
     }
+  },
+  // External API Configuration
+  igdb: {
+    clientId: process.env.IGDB_CLIENT_ID || 'your-igdb-client-id',
+    clientSecret: process.env.IGDB_CLIENT_SECRET || 'your-igdb-client-secret',
+    apiUrl: 'https://api.igdb.com/v4'
+  },
+  // Jobs Configuration
+  jobs: {
+    gameSyncInterval: parseInt(process.env.GAME_SYNC_INTERVAL, 10) || 24 * 60 * 60 * 1000, // 24 hours
+    gameSyncEnabled: process.env.GAME_SYNC_ENABLED !== 'false' // Default true
   }
 };
 
