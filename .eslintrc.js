@@ -18,7 +18,10 @@ module.exports = {
     rules: {
         // Best Practices
         'no-console': ['warn', { allow: ['warn', 'error'] }],
-        'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+        'no-unused-vars': ['error', {
+            argsIgnorePattern: '^_',
+            varsIgnorePattern: '^_' // Add this line
+        }],
         'prefer-const': 'error',
         'no-var': 'error',
         'eqeqeq': ['error', 'always'],

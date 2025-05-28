@@ -243,8 +243,8 @@ class QueueManager extends EventEmitter {
   cleanupExpiredRequests() {
     let cleaned = 0;
 
-    for (const [gameId, gameQueues] of this.queues) {
-      for (const [gameMode, modeQueues] of gameQueues) {
+    for (const [_gameId, gameQueues] of this.queues) {
+      for (const [_gameMode, modeQueues] of gameQueues) {
         for (const [region, queue] of modeQueues) {
           const validRequests = queue.filter((request) => {
             if (request.isExpired()) {

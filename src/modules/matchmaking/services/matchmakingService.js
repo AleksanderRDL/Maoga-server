@@ -143,8 +143,6 @@ class MatchmakingService {
         return null;
       }
 
-      const queueInfo = queueManager.getUserRequest(userId);
-
       return {
         request: requestDoc, // Use the resolved document
         queueInfo: {
@@ -301,7 +299,7 @@ class MatchmakingService {
   /**
    * Finalize a match
    */
-  async finalizeMatch(matchData) {
+  finalizeMatch(matchData) {
     try {
       const { matchHistory, participants } = matchData;
 
@@ -310,7 +308,7 @@ class MatchmakingService {
         queueManager.removeRequest(participant.userId, participant.requestId);
       });
 
-      // TODO: Create lobby (Sprint 7)
+      // TODO: Create lobby (Sprint 7) (remember to make method async when implemented)
       // const lobby = await lobbyService.createLobby(matchHistory);
       // matchHistory.lobbyId = lobby._id;
       // await matchHistory.save();
