@@ -186,7 +186,9 @@ class AdminService {
    */
   async calculateAccountAge(userId) {
     const user = await User.findById(userId).select('createdAt');
-    if (!user) {return 0;}
+    if (!user) {
+      return 0;
+    }
 
     const now = new Date();
     const created = new Date(user.createdAt);

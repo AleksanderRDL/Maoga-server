@@ -102,6 +102,12 @@ const submitReportSchema = Joi.object({
   }).optional()
 });
 
+const getMyReportsQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  status: Joi.string().valid('open', 'under_review', 'resolved', 'dismissed').optional()
+});
+
 // Parameter validation schemas
 const userIdParamSchema = Joi.object({
   userId: Joi.string()
@@ -127,6 +133,7 @@ module.exports = {
   getReportsQuerySchema,
   updateReportSchema,
   submitReportSchema,
+  getMyReportsQuerySchema,
   userIdParamSchema,
   reportIdParamSchema
 };

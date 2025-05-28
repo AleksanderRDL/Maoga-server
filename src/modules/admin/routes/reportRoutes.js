@@ -3,7 +3,11 @@ const reportController = require('../controllers/reportController');
 const { validateRequest, validateParams, validateQuery } = require('../../../middleware/validator');
 const { authenticate } = require('../../../middleware/auth');
 const { rateLimiter } = require('../../../middleware/rateLimiter');
-const { submitReportSchema, reportIdParamSchema } = require('../validations/adminValidation');
+const {
+  submitReportSchema,
+  reportIdParamSchema,
+  getMyReportsQuerySchema
+} = require('../validations/adminValidation');
 
 const router = express.Router();
 
@@ -22,11 +26,7 @@ router.post(
 router.get(
   '/my-reports',
   rateLimiter.standard,
-  validateQuery({
-    page: 1,
-    limit: 20,
-    status: undefined
-  }),
+  validateQuery(getMyReportsQuerySchema),
   reportController.getMyReports
 );
 

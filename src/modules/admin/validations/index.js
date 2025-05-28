@@ -4,6 +4,7 @@ const {
   getReportsQuerySchema,
   updateReportSchema,
   submitReportSchema,
+  getMyReportsQuerySchema,
   userIdParamSchema,
   reportIdParamSchema
 } = require('./adminValidation');
@@ -14,6 +15,7 @@ module.exports = {
   getReportsQuerySchema,
   updateReportSchema,
   submitReportSchema,
+  getMyReportsQuerySchema,
   userIdParamSchema,
   reportIdParamSchema
 };
