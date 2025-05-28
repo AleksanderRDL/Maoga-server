@@ -100,6 +100,7 @@ const globalErrorHandler = (err, req, res, next) => {
       }
     } else {
       // For dev/test, wrap generic errors but keep message/stack for easier debugging
+      console.error('RAW ERROR in globalErrorHandler:', err);
       operationalError = new AppError(
         err.message,
         err.statusCode || 500,
@@ -115,12 +116,14 @@ const globalErrorHandler = (err, req, res, next) => {
   logger.error({
     msg: 'Request error',
     error: {
+      name: operationalError.name, // Added name
       message: operationalError.message,
       code: operationalError.errorCode,
       statusCode: operationalError.statusCode,
       stack: operationalError.stack,
       isOperational: operationalError.isOperational,
-      details: operationalError.details
+      details: operationalError.details,
+      originalError: operationalError.originalError
     },
     request: {
       id: req.id || 'no-request-id',

@@ -1,5 +1,8 @@
 const Joi = require('joi');
 
+// Calculate maxScheduleTime once when the module is loaded
+const MAX_SCHEDULE_TIME_FROM_NOW = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
 // Submit match request schema
 const submitMatchRequestSchema = Joi.object({
   games: Joi.array()
@@ -58,7 +61,8 @@ const submitMatchRequestSchema = Joi.object({
 
   skillPreference: Joi.string().valid('similar', 'any').default('similar'),
 
-  scheduledTime: Joi.date().min('now').max(Joi.ref('$maxScheduleTime')).optional().messages({
+  scheduledTime: Joi.date().min('now').max(MAX_SCHEDULE_TIME_FROM_NOW).optional().messages({
+    // Use the pre-calculated value
     'date.min': 'Scheduled time cannot be in the past',
     'date.max': 'Scheduled time cannot be more than 7 days in the future'
   }),
@@ -76,11 +80,7 @@ const submitMatchRequestSchema = Joi.object({
     .messages({
       'array.max': 'Maximum 99 users can be preselected'
     })
-}).options({
-  context: {
-    maxScheduleTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-  }
-});
+}); // Removed .options() that was causing the issue
 
 // Cancel match request params
 const cancelMatchRequestParamsSchema = Joi.object({

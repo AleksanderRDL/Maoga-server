@@ -1,5 +1,6 @@
 const EventEmitter = require('events');
 const logger = require('../../../utils/logger');
+const { ConflictError, BadRequestError } = require('../../../utils/errors'); // Added BadRequestError
 
 class QueueManager extends EventEmitter {
   constructor() {
@@ -26,18 +27,32 @@ class QueueManager extends EventEmitter {
   }
 
   /**
+   * Clear all queues (for testing)
+   */
+  clearQueues() {
+    this.queues.clear();
+    this.userRequestMap.clear();
+    this.stats.activeRequests = 0;
+    this.stats.totalRequests = 0; // Reset for cleaner tests
+    this.stats.matchesFormed = 0; // Reset for cleaner tests
+    this.stats.avgWaitTime = 0; // Reset for cleaner tests
+  }
+
+  /**
    * Add a match request to the appropriate queue
    */
   addRequest(request) {
     try {
       // Check if user already has an active request
       if (this.userRequestMap.has(request.userId.toString())) {
-        throw new Error('User already has an active match request');
+        // Changed from generic Error to ConflictError
+        throw new ConflictError('User already has an active match request in queue');
       }
 
       const primaryGame = request.getPrimaryGame();
       if (!primaryGame) {
-        throw new Error('No game specified in match request');
+        // Changed from generic Error to BadRequestError
+        throw new BadRequestError('No primary game specified in match request criteria');
       }
 
       const gameId = primaryGame.gameId.toString();
@@ -160,10 +175,14 @@ class QueueManager extends EventEmitter {
    */
   getGameModeRequests(gameId, gameMode) {
     const gameQueues = this.queues.get(gameId.toString());
-    if (!gameQueues) return [];
+    if (!gameQueues) {
+      return [];
+    }
 
     const modeQueues = gameQueues.get(gameMode);
-    if (!modeQueues) return [];
+    if (!modeQueues) {
+      return [];
+    }
 
     const allRequests = [];
     for (const [region, queue] of modeQueues) {
@@ -254,10 +273,14 @@ class QueueManager extends EventEmitter {
    */
   cleanupEmptyQueues(gameId, gameMode, region) {
     const gameQueues = this.queues.get(gameId);
-    if (!gameQueues) return;
+    if (!gameQueues) {
+      return;
+    }
 
     const modeQueues = gameQueues.get(gameMode);
-    if (!modeQueues) return;
+    if (!modeQueues) {
+      return;
+    }
 
     const queue = modeQueues.get(region);
     if (!queue || queue.length === 0) {
@@ -271,15 +294,6 @@ class QueueManager extends EventEmitter {
     if (gameQueues.size === 0) {
       this.queues.delete(gameId);
     }
-  }
-
-  /**
-   * Clear all queues (for testing)
-   */
-  clearQueues() {
-    this.queues.clear();
-    this.userRequestMap.clear();
-    this.stats.activeRequests = 0;
   }
 
   /**

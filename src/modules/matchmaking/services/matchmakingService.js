@@ -133,22 +133,23 @@ class MatchmakingService {
    */
   async getCurrentMatchRequest(userId) {
     try {
-      const request = await MatchRequest.findActiveByUser(userId)
+      // Await the full query chain here
+      const requestDoc = await MatchRequest.findActiveByUser(userId) // findActiveByUser now returns a query
         .populate('criteria.games.gameId', 'name slug')
         .populate('preselectedUsers', 'username profile.displayName');
 
-      if (!request) {
+      if (!requestDoc) {
+        // Check the resolved document
         return null;
       }
 
-      // Add queue position info
       const queueInfo = queueManager.getUserRequest(userId);
 
       return {
-        request,
+        request: requestDoc, // Use the resolved document
         queueInfo: {
-          position: null, // TODO: Calculate actual position
-          estimatedWaitTime: this.estimateWaitTime(request)
+          position: null,
+          estimatedWaitTime: this.estimateWaitTime(requestDoc) // Pass the document
         }
       };
     } catch (error) {
@@ -367,7 +368,9 @@ class MatchmakingService {
    */
   estimateWaitTime(request) {
     const queueInfo = queueManager.getUserRequest(request.userId.toString());
-    if (!queueInfo) return null;
+    if (!queueInfo) {
+      return null;
+    }
 
     const stats = queueManager.getStats();
     const avgWaitTime = stats.avgWaitTime || 60000; // Default 1 minute

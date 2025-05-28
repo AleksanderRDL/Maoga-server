@@ -9,7 +9,7 @@ class MatchAlgorithmService {
     this.config = {
       minGroupSize: 2,
       maxGroupSize: 10,
-      skillRangeTiers: [1, 2, 3, 5, 10], // Skill range increases with relaxation
+      skillRangeTiers: [2, 4, 6, 10, 15], // Adjusted: More lenient initial tier
       compatibilityThreshold: 0.5, // Minimum compatibility score
       batchSize: 100 // Max requests to process at once
     };
@@ -84,7 +84,9 @@ class MatchAlgorithmService {
     enrichedRequests.sort((a, b) => a.request.searchStartTime - b.request.searchStartTime);
 
     for (const primary of enrichedRequests) {
-      if (processed.has(primary.request._id.toString())) continue;
+      if (processed.has(primary.request._id.toString())) {
+        continue;
+      }
 
       // Find compatible partners
       const compatiblePartners = this.findCompatiblePartners(
@@ -96,7 +98,6 @@ class MatchAlgorithmService {
 
       if (compatiblePartners.length >= this.config.minGroupSize - 1) {
         // Form a match
-        const participants = [primary, ...compatiblePartners];
         const match = await this.createMatch(participants, gameId, gameMode, region);
 
         matches.push(match);
@@ -170,7 +171,9 @@ class MatchAlgorithmService {
       (g) => g.gameId.toString() === gameId.toString()
     );
 
-    if (!game1 || !game2) return 0;
+    if (!game1 || !game2) {
+      return 0;
+    }
     scores.game = 1.0;
 
     // Game mode compatibility (must match)
@@ -261,7 +264,9 @@ class MatchAlgorithmService {
     const user1 = enriched1.user;
     const user2 = enriched2.user;
 
-    if (!user1 || !user2) return 0.5;
+    if (!user1 || !user2) {
+      return 0.5;
+    }
 
     // Get game profiles
     const profile1 = user1.gameProfiles?.find((p) => p.gameId.toString() === gameId.toString());
@@ -286,7 +291,8 @@ class MatchAlgorithmService {
 
     if (skillDiff <= allowedRange) {
       // Within range - higher score for closer skills
-      return 1.0 - (skillDiff / allowedRange) * 0.5;
+      // Ensure allowedRange is not zero to prevent division by zero, though tiers start at 2 now.
+      return allowedRange > 0 ? 1.0 - (skillDiff / allowedRange) * 0.5 : 0.5;
     }
 
     // Check skill preference
@@ -376,14 +382,37 @@ class MatchAlgorithmService {
         const p1 = participants[i];
         const p2 = participants[j];
 
-        // Calculate individual compatibility scores
-        const regionScore = this.calculateRegionScore(p1.request.criteria, p2.request.criteria);
-        const langScore = this.calculateLanguageScore(p1.request.criteria, p2.request.criteria);
-        const skillScore = this.calculateSkillScore(p1, p2, p1.request.getPrimaryGame().gameId);
+        // Ensure p1.request and p2.request, and their criteria are defined
+        if (!p1.request || !p1.request.criteria || !p2.request || !p2.request.criteria) {
+          logger.warn(
+            'Skipping participant pair due to missing request/criteria in calculateMatchQuality',
+            { p1_id: p1.user?._id, p2_id: p2.user?._id }
+          );
+          continue;
+        }
+        // Ensure primary game can be determined for skill score calculation
+        const primaryGame1 = p1.request.getPrimaryGame ? p1.request.getPrimaryGame() : null;
+        const primaryGame2 = p2.request.getPrimaryGame ? p2.request.getPrimaryGame() : null;
 
-        totalRegionCompat += regionScore;
-        totalLangCompat += langScore;
-        totalSkillBalance += skillScore;
+        if (
+          !primaryGame1 ||
+          !primaryGame1.gameId ||
+          !primaryGame2 ||
+          !primaryGame2.gameId ||
+          primaryGame1.gameId.toString() !== primaryGame2.gameId.toString()
+        ) {
+          logger.warn(
+            'Skipping skill score in calculateMatchQuality due to missing or mismatched primary game IDs',
+            { p1_game: primaryGame1?.gameId, p2_game: primaryGame2?.gameId }
+          );
+          totalSkillBalance += 0.5; // Neutral score if games mismatch or no info
+        } else {
+          totalSkillBalance += this.calculateSkillScore(p1, p2, primaryGame1.gameId);
+        }
+
+        // Calculate individual compatibility scores
+        totalRegionCompat += this.calculateRegionScore(p1.request.criteria, p2.request.criteria);
+        totalLangCompat += this.calculateLanguageScore(p1.request.criteria, p2.request.criteria);
         comparisons++;
       }
     }
@@ -404,7 +433,7 @@ class MatchAlgorithmService {
    * Apply criteria relaxation to long-waiting requests
    */
   async applyCriteriaRelaxation(request) {
-    const waitTime = request.searchDuration;
+    const waitTime = request.searchDuration; // This is a virtual, ensure it's accessed correctly
     const relaxationIntervals = [30000, 60000, 120000, 180000, 300000]; // 30s, 1m, 2m, 3m, 5m
 
     let newRelaxationLevel = 0;
@@ -422,7 +451,7 @@ class MatchAlgorithmService {
       logger.info('Applied criteria relaxation', {
         requestId: request._id,
         userId: request.userId,
-        oldLevel: request.relaxationLevel,
+        oldLevel: request.relaxationLevel, // This will show the newLevel because it was just updated
         newLevel: newRelaxationLevel,
         waitTime: Math.round(waitTime / 1000) + 's'
       });
@@ -454,7 +483,9 @@ class MatchAlgorithmService {
         relaxationLevelsUsed: {}
       };
 
-      if (matches.length === 0) return stats;
+      if (matches.length === 0) {
+        return stats;
+      }
 
       let totalParticipants = 0;
       let totalWaitTime = 0;

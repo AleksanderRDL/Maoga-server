@@ -56,7 +56,7 @@ const matchRequestSchema = new mongoose.Schema(
       regions: [
         {
           type: String,
-          enum: ['NA', 'EU', 'AS', 'SA', 'OC', 'AF']
+          enum: ['NA', 'EU', 'AS', 'SA', 'OC', 'AF', 'ANY']
         }
       ],
       languagePreference: {
@@ -148,21 +148,21 @@ matchRequestSchema.methods.getPrimaryGame = function () {
 };
 
 // Static method to find active requests for a user
-matchRequestSchema.statics.findActiveByUser = async function (userId) {
-  return await this.findOne({
+matchRequestSchema.statics.findActiveByUser = function (userId) {
+  return this.findOne({
     userId,
     status: 'searching'
   });
 };
 
 // Static method to find requests for matching
-matchRequestSchema.statics.findMatchableRequests = async function (
+matchRequestSchema.statics.findMatchableRequests = function (
   gameId,
   gameMode,
   region,
   limit = 100
 ) {
-  return await this.find({
+  return this.find({
     status: 'searching',
     'criteria.games.gameId': gameId,
     'criteria.gameMode': gameMode,
