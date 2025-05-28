@@ -11,6 +11,7 @@
     "test:integration": "cross-env NODE_ENV=test mocha --recursive test/integration --timeout 10000 --exit",
     "test:user": "cross-env NODE_ENV=test mocha --recursive test/**/*user* --timeout 10000 --exit",
     "test:game": "cross-env NODE_ENV=test mocha --recursive test/**/*game* --timeout 10000 --exit",
+    "test:admin": "cross-env NODE_ENV=test mocha --recursive test/**/*admin* test/**/*report* --timeout 10000 --exit",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\"",

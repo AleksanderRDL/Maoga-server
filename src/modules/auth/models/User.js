@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema(
     hashedPassword: {
       type: String,
       required: [true, 'Password is required'],
-      select: false // Don't include password in queries by default
+      select: false
     },
     role: {
       type: String,
@@ -43,7 +43,21 @@ const userSchema = new mongoose.Schema(
         type: String,
         maxlength: [500, 'Bio cannot exceed 500 characters']
       },
-      profileImage: String
+      profileImage: String,
+      privacySettings: {
+        showGameProfiles: {
+          type: Boolean,
+          default: true
+        },
+        showPreferences: {
+          type: Boolean,
+          default: true
+        },
+        showActivity: {
+          type: Boolean,
+          default: true
+        }
+      }
     },
     gamingPreferences: {
       competitiveness: {
@@ -53,12 +67,39 @@ const userSchema = new mongoose.Schema(
       },
       preferredGames: [
         {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'Game'
+          gameId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Game'
+          },
+          weight: {
+            type: Number,
+            min: 0,
+            max: 100,
+            default: 50
+          }
         }
       ],
+      gameWeights: {
+        type: Map,
+        of: Number,
+        default: new Map()
+      },
       regions: [String],
-      languages: [String]
+      languages: [String],
+      playTimePreferences: {
+        weekdays: {
+          start: String, // e.g., "19:00"
+          end: String // e.g., "23:00"
+        },
+        weekends: {
+          start: String,
+          end: String
+        },
+        timezone: {
+          type: String,
+          default: 'UTC'
+        }
+      }
     },
     gameProfiles: [
       {
@@ -76,6 +117,14 @@ const userSchema = new mongoose.Schema(
           type: Number,
           min: 0,
           max: 100
+        },
+        stats: {
+          type: Map,
+          of: mongoose.Schema.Types.Mixed
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now
         }
       }
     ],
@@ -127,6 +176,15 @@ const userSchema = new mongoose.Schema(
       enum: ['active', 'suspended', 'banned', 'deleted'],
       default: 'active'
     },
+    suspensionDetails: {
+      reason: String,
+      startDate: Date,
+      endDate: Date,
+      adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    },
     lastActive: {
       type: Date,
       default: Date.now
@@ -164,10 +222,9 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Virtual for user's full profile URL (placeholder for future CDN integration)
+// Virtual for user's full profile URL
 userSchema.virtual('profileImageUrl').get(function () {
   if (this.profile.profileImage) {
-    // In the future, this will return CDN URL
     return this.profile.profileImage;
   }
   return null;
@@ -175,13 +232,11 @@ userSchema.virtual('profileImageUrl').get(function () {
 
 // Pre-save hook to hash password
 userSchema.pre('save', async function (next) {
-  // Only hash password if it has been modified
   if (!this.isModified('hashedPassword')) {
     return next();
   }
 
   try {
-    // Generate salt and hash password
     const salt = await bcrypt.genSalt(10);
     this.hashedPassword = await bcrypt.hash(this.hashedPassword, salt);
     next();
@@ -206,6 +261,9 @@ userSchema.statics.findByCredential = async function (credential) {
     $or: [{ email: credential.toLowerCase() }, { username: credential }]
   }).select('+hashedPassword');
 };
+
+// Index for game profiles
+userSchema.index({ 'gameProfiles.gameId': 1 });
 
 const User = mongoose.model('User', userSchema);
 
