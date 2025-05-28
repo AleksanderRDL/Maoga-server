@@ -269,9 +269,9 @@ class GameService {
       summary: igdbGame.summary || '',
       coverImage: igdbGame.cover
         ? {
-          url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${igdbGame.cover.image_id}.jpg`,
-          thumbnailUrl: `https://images.igdb.com/igdb/image/upload/t_thumb/${igdbGame.cover.image_id}.jpg`
-        }
+            url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${igdbGame.cover.image_id}.jpg`,
+            thumbnailUrl: `https://images.igdb.com/igdb/image/upload/t_thumb/${igdbGame.cover.image_id}.jpg`
+          }
         : null,
       screenshots: (igdbGame.screenshots || []).map((s) => ({
         url: `https://images.igdb.com/igdb/image/upload/t_screenshot_big/${s.image_id}.jpg`,

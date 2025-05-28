@@ -3,50 +3,58 @@ const { expect } = require('chai');
 const sinon = require('sinon');
 const app = require('../../../src/app');
 const Game = require('../../../src/modules/game/models/Game');
+const User = require('../../../src/modules/auth/models/User');
 const igdbService = require('../../../src/modules/game/services/igdbService');
 const authService = require('../../../src/modules/auth/services/authService');
 const { testUsers } = require('../../fixtures/users');
-const User = require('../../../src/modules/auth/models/User'); // Make sure User model is imported
 
 describe('Game API', () => {
-    let authToken;
-    let adminToken;
-    let testGame;
+  let authToken;
+  let adminToken;
+  let testGame;
+  let sandbox;
 
-    beforeEach(async () => {
-        // Clean up collections
-        await Game.deleteMany({});
-        await User.deleteMany({}); // <-- Add this line to clear users
+  beforeEach(async () => {
+    sandbox = sinon.createSandbox();
+    // Clean up collections
+    await Game.deleteMany({});
+    await User.deleteMany({}); // <-- Add this line to clear users
 
-        // Create test game
-        testGame = await Game.create({
-            name: 'Test Game',
-            slug: 'test-game',
-            description: 'A test game for testing',
-            genres: [{ id: 1, name: 'Action' }],
-            platforms: [{ id: 48, name: 'PlayStation 4' }],
-            multiplayer: { online: true, maxPlayers: 4 },
-            popularity: 80,
-            rating: 85,
-            externalIds: { igdb: 12345 }
-        });
-
-        // Create regular user token
-        const userResult = await authService.register({
-            email: testUsers[0].email,
-            username: testUsers[0].username,
-            password: testUsers[0].password
-        });
-        authToken = userResult.accessToken;
-
-        // Create admin user token
-        const adminResult = await authService.register({
-            email: testUsers[2].email,
-            username: testUsers[2].username,
-            password: testUsers[2].password
-        });
-        adminToken = adminResult.accessToken;
+    // Create test game
+    testGame = await Game.create({
+      name: 'Test Game',
+      slug: 'test-game',
+      description: 'A test game for testing',
+      genres: [{ id: 1, name: 'Action' }],
+      platforms: [{ id: 48, name: 'PlayStation 4' }],
+      multiplayer: { online: true, maxPlayers: 4 },
+      popularity: 80,
+      rating: 85,
+      externalIds: { igdb: 12345 }
     });
+
+    // Create regular user token
+    const userResult = await authService.register({
+      email: testUsers[0].email,
+      username: testUsers[0].username,
+      password: testUsers[0].password,
+      role: testUsers[0].role
+    });
+    authToken = userResult.accessToken;
+
+    // Create admin user token
+    const adminResult = await authService.register({
+      email: testUsers[2].email,
+      username: testUsers[2].username,
+      password: testUsers[2].password,
+      role: testUsers[2].role
+    });
+    adminToken = adminResult.accessToken;
+  });
+
+  afterEach(() => {
+    sandbox.restore(); // <--- Restore all stubs created in the sandbox
+  });
 
   describe('GET /api/games', () => {
     beforeEach(async () => {
@@ -215,26 +223,25 @@ describe('Game API', () => {
   });
 
   describe('POST /api/games/fetch', () => {
-    let igdbStub;
-
     beforeEach(() => {
-      igdbStub = sinon.stub(igdbService);
+      // Stub specific methods needed for this test block using the sandbox
+      sandbox.stub(igdbService, 'searchGames');
+      sandbox.stub(igdbService, 'getGameDetails');
     });
 
-    afterEach(() => {
-      igdbStub.restore();
-    });
+    // afterEach is handled by the top-level sandbox.restore()
 
     it('should fetch game from IGDB if not found locally', async () => {
-      const igdbGame = {
+      const igdbGameData = {
+        // Renamed to avoid conflict if igdbService itself is referred
         id: 99999,
         name: 'New IGDB Game',
         slug: 'new-igdb-game',
         summary: 'A new game from IGDB'
       };
 
-      igdbStub.searchGames.resolves([igdbGame]);
-      igdbStub.getGameDetails.resolves(igdbGame);
+      igdbService.searchGames.resolves([igdbGameData]); // Use the stubbed method
+      igdbService.getGameDetails.resolves(igdbGameData); // Use the stubbed method
 
       const res = await request(app)
         .post('/api/games/fetch')
@@ -246,7 +253,6 @@ describe('Game API', () => {
       expect(res.body.data.game.name).to.equal('New IGDB Game');
       expect(res.body.data.game.externalIds.igdb).to.equal(99999);
 
-      // Verify game was saved to database
       const savedGame = await Game.findOne({ 'externalIds.igdb': 99999 });
       expect(savedGame).to.exist;
     });
@@ -260,7 +266,7 @@ describe('Game API', () => {
 
       expect(res.body.status).to.equal('success');
       expect(res.body.data.game._id).to.equal(testGame._id.toString());
-      expect(igdbStub.searchGames.called).to.be.false;
+      expect(igdbService.searchGames.called).to.be.false;
     });
 
     it('should require authentication', async () => {
@@ -286,18 +292,14 @@ describe('Game API', () => {
   });
 
   describe('POST /api/admin/games/sync', () => {
-    let igdbStub;
-
     beforeEach(() => {
-      igdbStub = sinon.stub(igdbService);
+      sandbox.stub(igdbService, 'getPopularGames'); // Stub specific method
     });
 
-    afterEach(() => {
-      igdbStub.restore();
-    });
+    // afterEach is handled by the top-level sandbox.restore()
 
     it('should start game sync (admin only)', async () => {
-      igdbStub.getPopularGames.resolves([]);
+      igdbService.getPopularGames.resolves([]); // Use the stubbed method
 
       const res = await request(app)
         .post('/api/admin/games/sync')

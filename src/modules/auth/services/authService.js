@@ -14,7 +14,7 @@ class AuthService {
    * Register a new user
    */
   async register(userData) {
-    const { email, username, password, displayName } = userData;
+    const { email, username, password, displayName, role } = userData;
 
     try {
       // Check if user already exists
@@ -38,7 +38,8 @@ class AuthService {
         hashedPassword: password, // Will be hashed by pre-save hook
         profile: {
           displayName: displayName || username
-        }
+        },
+        role: role || 'user'
       });
 
       await user.save();
