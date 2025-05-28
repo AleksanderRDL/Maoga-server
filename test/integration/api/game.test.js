@@ -6,45 +6,47 @@ const Game = require('../../../src/modules/game/models/Game');
 const igdbService = require('../../../src/modules/game/services/igdbService');
 const authService = require('../../../src/modules/auth/services/authService');
 const { testUsers } = require('../../fixtures/users');
+const User = require('../../../src/modules/auth/models/User'); // Make sure User model is imported
 
 describe('Game API', () => {
-  let authToken;
-  let adminToken;
-  let testGame;
+    let authToken;
+    let adminToken;
+    let testGame;
 
-  beforeEach(async () => {
-    // Clean up games collection
-    await Game.deleteMany({});
+    beforeEach(async () => {
+        // Clean up collections
+        await Game.deleteMany({});
+        await User.deleteMany({}); // <-- Add this line to clear users
 
-    // Create test game
-    testGame = await Game.create({
-      name: 'Test Game',
-      slug: 'test-game',
-      description: 'A test game for testing',
-      genres: [{ id: 1, name: 'Action' }],
-      platforms: [{ id: 48, name: 'PlayStation 4' }],
-      multiplayer: { online: true, maxPlayers: 4 },
-      popularity: 80,
-      rating: 85,
-      externalIds: { igdb: 12345 }
+        // Create test game
+        testGame = await Game.create({
+            name: 'Test Game',
+            slug: 'test-game',
+            description: 'A test game for testing',
+            genres: [{ id: 1, name: 'Action' }],
+            platforms: [{ id: 48, name: 'PlayStation 4' }],
+            multiplayer: { online: true, maxPlayers: 4 },
+            popularity: 80,
+            rating: 85,
+            externalIds: { igdb: 12345 }
+        });
+
+        // Create regular user token
+        const userResult = await authService.register({
+            email: testUsers[0].email,
+            username: testUsers[0].username,
+            password: testUsers[0].password
+        });
+        authToken = userResult.accessToken;
+
+        // Create admin user token
+        const adminResult = await authService.register({
+            email: testUsers[2].email,
+            username: testUsers[2].username,
+            password: testUsers[2].password
+        });
+        adminToken = adminResult.accessToken;
     });
-
-    // Create regular user token
-    const userResult = await authService.register({
-      email: testUsers[0].email,
-      username: testUsers[0].username,
-      password: testUsers[0].password
-    });
-    authToken = userResult.accessToken;
-
-    // Create admin user token
-    const adminResult = await authService.register({
-      email: testUsers[2].email,
-      username: testUsers[2].username,
-      password: testUsers[2].password
-    });
-    adminToken = adminResult.accessToken;
-  });
 
   describe('GET /api/games', () => {
     beforeEach(async () => {
