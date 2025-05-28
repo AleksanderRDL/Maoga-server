@@ -1,7 +1,7 @@
 const axios = require('axios');
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
-const { BadRequestError, InternalServerError } = require('../../../utils/errors');
+const { BadRequestError, InternalServerError, NotFoundError } = require('../../../utils/errors');
 
 class IGDBService {
   constructor() {

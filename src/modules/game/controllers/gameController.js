@@ -79,6 +79,7 @@ const getTrendingGames = asyncHandler(async (req, res) => {
 /**
  * Sync popular games (admin only)
  */
+// eslint-disable-next-line require-await
 const syncPopularGames = asyncHandler(async (req, res) => {
   const { limit = 2000 } = req.body;
 
@@ -90,6 +91,7 @@ const syncPopularGames = asyncHandler(async (req, res) => {
   });
 
   // Start sync in background
+  // eslint-disable-next-line require-await
   gameService.syncPopularGames(limit).catch((error) => {
     logger.error('Background game sync failed', { error: error.message });
   });

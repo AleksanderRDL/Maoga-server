@@ -228,19 +228,19 @@ gameSchema.methods.needsSync = function () {
 };
 
 // Static method to find games by platform
-gameSchema.statics.findByPlatform = async function (platformId) {
+gameSchema.statics.findByPlatform = function (platformId) {
   return this.find({ 'platforms.id': platformId }).sort({ popularity: -1 }).limit(100);
 };
 
 // Static method to find trending games
-gameSchema.statics.findTrending = async function (limit = 20) {
+gameSchema.statics.findTrending = function (limit = 20) {
   return this.find({ 'maogaData.trending': true })
     .sort({ 'maogaData.playerCount': -1, popularity: -1 })
     .limit(limit);
 };
 
 // Static method for search with filters
-gameSchema.statics.searchGames = async function (options = {}) {
+gameSchema.statics.searchGames = function (options = {}) {
   const {
     query,
     genres,

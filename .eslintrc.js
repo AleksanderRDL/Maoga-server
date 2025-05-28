@@ -29,7 +29,7 @@ module.exports = {
         'security/detect-non-literal-regexp': 'warn',
 
         // Style
-        'indent': ['error', 2, { 'SwitchCase': 1 }],
+        'indent': 'off',
         'quotes': ['error', 'single'],
         'semi': ['error', 'always'],
         'comma-dangle': ['error', 'never'],

@@ -38,7 +38,7 @@ class CacheService {
   /**
    * Get value from cache
    */
-  async get(key) {
+  get(key) {
     try {
       const value = this.cache.get(key);
 
@@ -60,7 +60,7 @@ class CacheService {
   /**
    * Set value in cache with optional TTL
    */
-  async set(key, value, ttl = null) {
+  set(key, value, ttl = null) {
     try {
       const success = ttl ? this.cache.set(key, value, ttl) : this.cache.set(key, value);
 
@@ -79,7 +79,7 @@ class CacheService {
   /**
    * Delete value from cache
    */
-  async del(key) {
+  del(key) {
     try {
       const count = this.cache.del(key);
       this.stats.deletes += count;
@@ -94,7 +94,7 @@ class CacheService {
   /**
    * Delete multiple keys by pattern
    */
-  async deletePattern(pattern) {
+  deletePattern(pattern) {
     try {
       const keys = this.cache.keys();
       const regex = new RegExp(pattern);
@@ -117,7 +117,7 @@ class CacheService {
   /**
    * Clear all cache
    */
-  async flush() {
+  flush() {
     try {
       this.cache.flushAll();
       logger.info('Cache flushed');
