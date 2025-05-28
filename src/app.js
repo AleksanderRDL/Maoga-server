@@ -13,6 +13,7 @@ const userModule = require('./modules/user');
 const gameModule = require('./modules/game');
 const adminModule = require('./modules/admin');
 const socialModule = require('./modules/social');
+const matchmakingModule = require('./modules/matchmaking');
 
 // Create Express app
 const app = express();
@@ -71,9 +72,9 @@ app.use('/api', gameModule.routes);
 app.use('/api/admin', adminModule.adminRoutes);
 app.use('/api/reports', adminModule.reportRoutes);
 app.use('/api/social', socialModule.routes);
+app.use('/api/matchmaking', matchmakingModule.routes);
 
 // Future module routes will be added here:
-// app.use('/api/matchmaking', matchmakingModule.routes);
 // app.use('/api/lobbies', lobbyModule.routes);
 // app.use('/api/chat', chatModule.routes);
 // app.use('/api/notifications', notificationModule.routes);
