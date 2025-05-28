@@ -88,7 +88,6 @@ class MatchAlgorithmService {
         continue;
       }
 
-      // Find compatible partners
       const compatiblePartners = this.findCompatiblePartners(
         primary,
         enrichedRequests,
@@ -96,16 +95,28 @@ class MatchAlgorithmService {
         gameId
       );
 
+      // Ensure we have enough for a match INCLUDING the primary player
       if (compatiblePartners.length >= this.config.minGroupSize - 1) {
-        // Form a match
-        const match = await this.createMatch(participants, gameId, gameMode, region);
+        // Correctly form the participants array for the match
+        const matchParticipants = [primary, ...compatiblePartners];
 
-        matches.push(match);
+        // Ensure we don't exceed max group size (if you form a match with only a subset of compatiblePartners)
+        // For now, assuming we use all found compatiblePartners that fit within minGroupSize logic.
+        // If you want to form smaller groups out of a larger pool of compatible partners, logic here would be more complex.
 
-        // Mark as processed
-        participants.forEach((p) => {
-          processed.add(p.request._id.toString());
-        });
+        if (
+          matchParticipants.length >= this.config.minGroupSize &&
+          matchParticipants.length <=
+            (primary.request.criteria.groupSize?.max || this.config.maxGroupSize)
+        ) {
+          const match = await this.createMatch(matchParticipants, gameId, gameMode, region);
+          matches.push(match);
+
+          // Mark all participants in the formed match as processed
+          matchParticipants.forEach((p) => {
+            processed.add(p.request._id.toString());
+          });
+        }
       }
     }
 

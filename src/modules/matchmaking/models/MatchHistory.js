@@ -144,7 +144,7 @@ matchHistorySchema.methods.removeParticipant = function (userId, reason = 'left'
 };
 
 // Instance method to calculate match metrics
-matchHistorySchema.methods.calculateMetrics = async function (matchRequests) {
+matchHistorySchema.methods.calculateMetrics = function (matchRequests) {
   if (!matchRequests || matchRequests.length === 0) {
     return;
   }

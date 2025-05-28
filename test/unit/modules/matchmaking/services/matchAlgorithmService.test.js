@@ -299,28 +299,40 @@ describe('MatchAlgorithmService', () => {
       const participants = [
         {
           request: {
-            criteria: { regions: ['NA'], languages: ['en'], languagePreference: 'any' }, // Added languagePreference
+            criteria: {
+              regions: ['NA'],
+              languages: ['en'],
+              languagePreference: 'any',
+              skillPreference: 'similar'
+            },
+            relaxationLevel: 0,
             getPrimaryGame: () => ({ gameId: gameIdToUse })
           },
-          user: { gameProfiles: [{ gameId: gameIdToUse, skillLevel: 50 }] }
+          user: { _id: 'user1', gameProfiles: [{ gameId: gameIdToUse, skillLevel: 50 }] }
         },
         {
           request: {
-            criteria: { regions: ['NA'], languages: ['en'], languagePreference: 'any' }, // Added languagePreference
+            criteria: {
+              regions: ['NA'],
+              languages: ['en'],
+              languagePreference: 'any',
+              skillPreference: 'similar'
+            },
+            relaxationLevel: 0,
             getPrimaryGame: () => ({ gameId: gameIdToUse })
           },
-          user: { gameProfiles: [{ gameId: gameIdToUse, skillLevel: 52 }] } // Skill diff 2
+          user: { _id: 'user2', gameProfiles: [{ gameId: gameIdToUse, skillLevel: 52 }] }
         }
       ];
-      // Region=1, Lang=1, Skill (diff 2, range 2) = 1 - (2/2)*0.5 = 0.5
+      // Region=1, Lang=1, Skill (diff 2, range 2 from skillRangeTiers[0]) = 1 - (2/2)*0.5 = 0.5
       // Overall = ((1+1+0.5)/3)*100 = (2.5/3)*100 = 83.33 -> 83
       const quality = matchAlgorithmService.calculateMatchQuality(participants);
 
       expect(quality).to.have.property('regionCompatibility', 100);
       expect(quality).to.have.property('languageCompatibility', 100);
-      expect(quality).to.have.property('skillBalance', 50); // (1 - (2/2)*0.5) * 100
+      expect(quality).to.have.property('skillBalance', 50); // (0.5 * 100)
       expect(quality).to.have.property('overallScore');
-      expect(quality.overallScore).to.be.closeTo(83, 1); // (100+100+50)/3
+      expect(quality.overallScore).to.be.closeTo(83, 1); // ((100+100+50)/3)
     });
   });
 });
