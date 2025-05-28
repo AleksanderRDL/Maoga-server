@@ -281,6 +281,7 @@ gameSchema.statics.searchGames = function (options = {}) {
     name: { name: 1 }
   };
 
+  // eslint-disable-next-line security/detect-object-injection
   const sort = sortOptions[sortBy] || sortOptions.popularity;
 
   return this.find(filter).sort(sort).limit(limit).skip(skip);

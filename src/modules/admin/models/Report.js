@@ -116,7 +116,7 @@ reportSchema.statics.getStatistics = async function (dateRange) {
     };
   }
 
-  return this.aggregate([
+  return await this.aggregate([
     { $match: match },
     {
       $group: {

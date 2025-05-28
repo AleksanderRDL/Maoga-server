@@ -1,6 +1,7 @@
 const NodeCache = require('node-cache');
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
+const { escapeRegExp } = require('../../../utils/validation');
 
 class CacheService {
   constructor() {
@@ -97,7 +98,9 @@ class CacheService {
   deletePattern(pattern) {
     try {
       const keys = this.cache.keys();
-      const regex = new RegExp(pattern);
+      const sanitizedPattern = escapeRegExp(pattern);
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      const regex = new RegExp(sanitizedPattern);
       const matchingKeys = keys.filter((key) => regex.test(key));
 
       if (matchingKeys.length > 0) {

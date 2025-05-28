@@ -3,6 +3,7 @@ const igdbService = require('./igdbService');
 const cacheService = require('./cacheService');
 const { NotFoundError, BadRequestError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
+const { escapeRegExp } = require('../../../utils/validation');
 
 class GameService {
   /**
@@ -106,8 +107,13 @@ class GameService {
   async getOrFetchGame(query) {
     try {
       // First, try to find in local database
+      const sanitizedQuery = escapeRegExp(query);
       let game = await Game.findOne({
-        $or: [{ name: new RegExp(query, 'i') }, { slug: query.toLowerCase().replace(/\s+/g, '-') }]
+        $or: [
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          { name: new RegExp(sanitizedQuery, 'i') },
+          { slug: query.toLowerCase().replace(/\s+/g, '-') }
+        ]
       });
 
       if (game) {

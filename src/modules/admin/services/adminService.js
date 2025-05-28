@@ -1,6 +1,6 @@
 const User = require('../../auth/models/User');
 const Report = require('../models/Report');
-const { NotFoundError, BadRequestError, AuthorizationError } = require('../../../utils/errors');
+const { NotFoundError /*BadRequestError, AuthorizationError */ } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 
 class AdminService {
@@ -41,6 +41,7 @@ class AdminService {
 
       // Build sort object
       const sort = {};
+      // eslint-disable-next-line security/detect-object-injection
       sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
       // Execute query
@@ -236,6 +237,7 @@ class AdminService {
 
       // Build sort object
       const sort = {};
+      // eslint-disable-next-line security/detect-object-injection
       sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
       // Execute query
@@ -386,9 +388,9 @@ class AdminService {
   /**
    * Log admin action for audit trail
    */
-  async logAdminAction(actionData) {
+  logAdminAction(actionData) {
     try {
-      // TODO: Implement AdminAction model and logging
+      // TODO: Implement AdminAction model and logging, then method can be made async
       // For now, just log to application logs
       logger.info('Admin action logged', actionData);
     } catch (error) {

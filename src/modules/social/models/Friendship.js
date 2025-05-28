@@ -66,7 +66,7 @@ friendshipSchema.pre('save', function (next) {
 // Static method to find friendship between two users
 friendshipSchema.statics.findFriendship = async function (userId1, userId2) {
   const [smallerId, largerId] = [userId1.toString(), userId2.toString()].sort();
-  return this.findOne({
+  return await this.findOne({
     user1Id: smallerId,
     user2Id: largerId
   });
@@ -74,7 +74,7 @@ friendshipSchema.statics.findFriendship = async function (userId1, userId2) {
 
 // Static method to get all friends of a user
 friendshipSchema.statics.getFriends = async function (userId, status = 'accepted') {
-  return this.find({
+  return await this.find({
     $or: [
       { user1Id: userId, status },
       { user2Id: userId, status }
@@ -84,7 +84,7 @@ friendshipSchema.statics.getFriends = async function (userId, status = 'accepted
 
 // Static method to get pending friend requests
 friendshipSchema.statics.getPendingRequests = async function (userId) {
-  return this.find({
+  return await this.find({
     $or: [
       { user1Id: userId, status: 'pending', requestedBy: { $ne: userId } },
       { user2Id: userId, status: 'pending', requestedBy: { $ne: userId } }
