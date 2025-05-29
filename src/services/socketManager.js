@@ -171,7 +171,11 @@ class SocketManager {
         this.handleUserStatusUnsubscribe(socket, data)
       );
 
-      // Add other specific event handlers here
+      // Lobby events
+      socket.on('lobby:subscribe', (data) => this.handleLobbySubscribe(socket, data));
+      socket.on('lobby:unsubscribe', (data) => this.handleLobbyUnsubscribe(socket, data));
+      socket.on('chat:send', (data) => this.handleChatMessage(socket, data));
+      socket.on('chat:typing', (data) => this.handleChatTyping(socket, data));
     });
   }
 
@@ -511,6 +515,120 @@ class SocketManager {
         userId: socket.userId,
         data
       });
+    }
+  }
+
+  handleLobbySubscribe(socket, data) {
+    try {
+      const { lobbyId } = data;
+
+      if (!lobbyId || typeof lobbyId !== 'string') {
+        socket.emit('error', { message: 'Invalid lobby ID' });
+        return;
+      }
+
+      const roomName = `lobby:${lobbyId}`;
+      socket.join(roomName);
+
+      logger.info('Socket subscribed to lobby', {
+        socketId: socket.id,
+        userId: socket.userId,
+        lobbyId
+      });
+
+      socket.emit('lobby:subscribed', { lobbyId });
+    } catch (error) {
+      logger.error('Failed to subscribe to lobby', {
+        error: error.message,
+        socketId: socket.id,
+        data
+      });
+    }
+  }
+
+  handleLobbyUnsubscribe(socket, data) {
+    try {
+      const { lobbyId } = data;
+
+      if (!lobbyId) {
+        return;
+      }
+
+      const roomName = `lobby:${lobbyId}`;
+      socket.leave(roomName);
+
+      logger.info('Socket unsubscribed from lobby', {
+        socketId: socket.id,
+        userId: socket.userId,
+        lobbyId
+      });
+
+      socket.emit('lobby:unsubscribed', { lobbyId });
+    } catch (error) {
+      logger.error('Failed to unsubscribe from lobby', {
+        error: error.message,
+        socketId: socket.id,
+        data
+      });
+    }
+  }
+
+  async handleChatMessage(socket, data) {
+    try {
+      const { lobbyId, content, contentType = 'text' } = data;
+      const userId = socket.userId;
+
+      if (!lobbyId || !content) {
+        socket.emit('error', { message: 'Invalid message data' });
+        return;
+      }
+
+      // Delegate to chat service
+      const chatService = require('../modules/chat/services/chatService');
+      await chatService.sendLobbyMessage(lobbyId, userId, content, contentType);
+    } catch (error) {
+      logger.error('Failed to handle chat message', {
+        error: error.message,
+        socketId: socket.id,
+        data
+      });
+      socket.emit('error', { message: 'Failed to send message' });
+    }
+  }
+
+  handleChatTyping(socket, data) {
+    try {
+      const { lobbyId, isTyping } = data;
+      const userId = socket.userId;
+
+      if (!lobbyId) {
+        return;
+      }
+
+      const chatService = require('../modules/chat/services/chatService');
+      chatService.emitTypingIndicator(lobbyId, userId, isTyping);
+    } catch (error) {
+      logger.error('Failed to handle typing indicator', {
+        error: error.message,
+        socketId: socket.id,
+        data
+      });
+    }
+  }
+
+  // Add this method for emitting to room
+  emitToRoom(roomName, event, data) {
+    try {
+      this.io.to(roomName).emit(event, data);
+      logger.debug('Emitted event to room', { roomName, event });
+      return true;
+    } catch (error) {
+      logger.error('Failed to emit to room', {
+        error: error.message,
+        roomName,
+        event
+      });
+      return false;
     }
   }
 

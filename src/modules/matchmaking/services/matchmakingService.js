@@ -344,31 +344,48 @@ class MatchmakingService {
       const { matchHistory, participants } = matchData;
       logger.info(`Finalizing match ${matchHistory._id} with ${participants.length} participants.`);
 
+      // Create lobby using lobbyService
+      const lobbyService = require('../../lobby/services/lobbyService');
+      const lobby = await lobbyService.createLobby(matchData);
+
+      // Update participants with lobby info
       participants.forEach((participant) => {
         const statusPayload = {
           status: 'matched',
           matchId: matchHistory._id.toString(),
+          lobbyId: lobby._id.toString(),
           participants: participants.map((p) => ({
             userId: p.user?._id.toString() || p.userId.toString(),
             username: p.user?.username || 'Unknown'
           }))
         };
+
         logger.debug(
           `Emitting 'matched' status for participant ${participant.userId} (request: ${participant.requestId})`,
           statusPayload
         );
+
         socketManager.emitMatchmakingStatus(participant.requestId.toString(), statusPayload);
-        // removeRequest expects userId as first arg
+
+        // Auto-subscribe to lobby updates
+        socketManager.emitToUser(
+          participant.user?._id.toString() || participant.userId.toString(),
+          'lobby:created',
+          { lobbyId: lobby._id.toString() }
+        );
+
         queueManager.removeRequest(
           participant.user?._id.toString() || participant.userId.toString(),
           participant.requestId.toString()
         );
       });
 
-      logger.info('Match finalized and participants removed from queue', {
+      logger.info('Match finalized with lobby created', {
         matchId: matchHistory._id,
+        lobbyId: lobby._id,
         participantCount: participants.length
       });
+
       return matchHistory;
     } catch (error) {
       logger.error('Failed to finalize match', {
