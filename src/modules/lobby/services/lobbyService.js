@@ -1,6 +1,6 @@
 const Lobby = require('../models/Lobby');
 const Chat = require('../../chat/models/Chat');
-const MatchHistory = require('../../matchmaking/models/MatchHistory');
+const _MatchHistory = require('../../matchmaking/models/MatchHistory');
 const User = require('../../auth/models/User');
 const socketManager = require('../../../services/socketManager');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../../utils/errors');

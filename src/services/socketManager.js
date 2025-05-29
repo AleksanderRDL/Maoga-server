@@ -529,11 +529,13 @@ class SocketManager {
 
       const roomName = `lobby:${lobbyId}`;
       socket.join(roomName);
+      this.rooms.set(roomName, (this.rooms.get(roomName) || new Set()).add(socket.id));
 
       logger.info('Socket subscribed to lobby', {
         socketId: socket.id,
         userId: socket.userId,
-        lobbyId
+        lobbyId,
+        roomName
       });
 
       socket.emit('lobby:subscribed', { lobbyId });
@@ -541,7 +543,11 @@ class SocketManager {
       logger.error('Failed to subscribe to lobby', {
         error: error.message,
         socketId: socket.id,
+        userId: socket.userId,
         data
+      });
+      socket.emit('error', {
+        message: 'Failed to subscribe to lobby: Internal server error'
       });
     }
   }
@@ -549,18 +555,39 @@ class SocketManager {
   handleLobbyUnsubscribe(socket, data) {
     try {
       const { lobbyId } = data;
+      logger.debug('Handling lobby:unsubscribe', {
+        socketId: socket.id,
+        userId: socket.userId,
+        data
+      });
 
-      if (!lobbyId) {
+      if (!lobbyId || typeof lobbyId !== 'string') {
+        // Added type check for safety
+        logger.warn('Lobby unsubscribe attempt with invalid or no lobbyId', {
+          socketId: socket.id,
+          userId: socket.userId,
+          data
+        });
+        socket.emit('error', { message: 'Lobby ID (string) required for unsubscription' });
         return;
       }
 
       const roomName = `lobby:${lobbyId}`;
       socket.leave(roomName);
 
+      const roomMembers = this.rooms.get(roomName);
+      if (roomMembers) {
+        roomMembers.delete(socket.id);
+        if (roomMembers.size === 0) {
+          this.rooms.delete(roomName);
+        }
+      }
+
       logger.info('Socket unsubscribed from lobby', {
         socketId: socket.id,
         userId: socket.userId,
-        lobbyId
+        lobbyId,
+        roomName
       });
 
       socket.emit('lobby:unsubscribed', { lobbyId });
@@ -568,8 +595,10 @@ class SocketManager {
       logger.error('Failed to unsubscribe from lobby', {
         error: error.message,
         socketId: socket.id,
+        userId: socket.userId,
         data
       });
+      socket.emit('error', { message: 'Failed to unsubscribe from lobby: Internal server error' });
     }
   }
 

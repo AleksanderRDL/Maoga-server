@@ -145,6 +145,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 /**
  * Get Socket.IO statistics
  */
+/* eslint-disable require-await */
 const getSocketStats = asyncHandler(async (req, res) => {
   const stats = socketManager.getStats();
 

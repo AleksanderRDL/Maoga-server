@@ -65,10 +65,12 @@ describe('Socket.IO Connection', () => {
   });
 
   afterEach(async () => {
-    if (mainSocketClient && mainSocketClient.socket && mainSocketClient.socket.connected) mainSocketClient.disconnect();
+    if (mainSocketClient && mainSocketClient.socket && mainSocketClient.socket.connected)
+      mainSocketClient.disconnect();
     if (client1 && client1.socket && client1.socket.connected) client1.disconnect();
     if (client2 && client2.socket && client2.socket.connected) client2.disconnect();
-    if (watcherClient && watcherClient.socket && watcherClient.socket.connected) watcherClient.disconnect();
+    if (watcherClient && watcherClient.socket && watcherClient.socket.connected)
+      watcherClient.disconnect();
     await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
@@ -89,7 +91,7 @@ describe('Socket.IO Connection', () => {
         expect.fail('Should have thrown an error for missing token');
       } catch (error) {
         const errorMessage =
-            error.data?.message || error.message || (error.error && error.error.message);
+          error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('No token provided');
       } finally {
         clientWithNoToken.disconnect();
@@ -103,7 +105,7 @@ describe('Socket.IO Connection', () => {
         expect.fail('Should have thrown an error for invalid token');
       } catch (error) {
         const errorMessage =
-            error.data?.message || error.message || (error.error && error.error.message);
+          error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('Authentication failed');
       } finally {
         clientWithInvalidToken.disconnect();
@@ -158,7 +160,6 @@ describe('Socket.IO Connection', () => {
       await watcherClient.connect();
       await watcherConnectedPromise;
 
-
       watcherClient.emit('user:status:subscribe', { userIds: [testUser1.id] });
 
       const initialStatus = await watcherClient.waitForEvent('user:status:update', 5000);
@@ -199,9 +200,9 @@ describe('Socket.IO Connection', () => {
     });
 
     afterEach(async () => {
-      if (watcherClient && watcherClient.socket && watcherClient.socket.connected) watcherClient.disconnect();
+      if (watcherClient && watcherClient.socket && watcherClient.socket.connected)
+        watcherClient.disconnect();
     });
-
 
     it('should emit an error if user:status:subscribe payload is missing userIds', async () => {
       watcherClient.emit('user:status:subscribe', {});
@@ -225,8 +226,10 @@ describe('Socket.IO Connection', () => {
     });
 
     it('should gracefully handle non-string userIds in user:status:subscribe array', async () => {
-      watcherClient.emit('user:status:subscribe', { userIds: [testUser1.id, 123, "anotherValidId"] });
-      await new Promise(resolve => setTimeout(resolve, 500));
+      watcherClient.emit('user:status:subscribe', {
+        userIds: [testUser1.id, 123, 'anotherValidId']
+      });
+      await new Promise((resolve) => setTimeout(resolve, 500));
     });
   });
 
@@ -245,7 +248,7 @@ describe('Socket.IO Connection', () => {
       if (clientForRoomTest && clientForRoomTest.socket && clientForRoomTest.socket.connected) {
         clientForRoomTest.disconnect();
       }
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
     it('should remove socket from custom rooms on disconnect', async () => {
@@ -255,37 +258,85 @@ describe('Socket.IO Connection', () => {
 
       clientForRoomTest.emit('matchmaking:subscribe', { requestId: matchRequestId });
       await clientForRoomTest.waitForEvent('matchmaking:subscribed', 3000);
+      // Add a small delay here to ensure server-side state for matchmaking room is set
+      await new Promise((resolve) => setTimeout(resolve, 50)); // Delay for matchmaking room
 
       clientForRoomTest.emit('lobby:subscribe', { lobbyId: lobbyId });
       await clientForRoomTest.waitForEvent('lobby:subscribed', 3000);
+      // Add a small delay here for lobby room
+      await new Promise((resolve) => setTimeout(resolve, 50)); // Delay for lobby room
 
       clientForRoomTest.emit('user:status:subscribe', { userIds: [statusUserId] });
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // For user:status:subscribe, the server might emit 'user:status:update'.
+      // The existing 100ms delay should be sufficient for its side effects.
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
+      // Line 267 (original failing line)
+      // Check if the room exists before trying to call .has() on its value
+      const matchRoom = socketManager.rooms.get(`match:${matchRequestId}`);
+      expect(matchRoom, `Match room 'match:${matchRequestId}' should exist in socketManager.rooms`)
+        .to.not.be.undefined;
+      expect(
+        matchRoom.has(clientForRoomTest.socket.id),
+        `Socket ID should be in match room 'match:${matchRequestId}'`
+      ).to.be.true;
 
-      expect(socketManager.rooms.get(`match:${matchRequestId}`).has(clientForRoomTest.socket.id)).to.be.true;
-      expect(socketManager.rooms.get(`lobby:${lobbyId}`).has(clientForRoomTest.socket.id)).to.be.true;
-      expect(socketManager.rooms.get(`status:${statusUserId}`).has(clientForRoomTest.socket.id)).to.be.true;
-      expect(socketManager.io.sockets.adapter.rooms.get(`user:${testUser1.id}`).has(clientForRoomTest.socket.id)).to.be.true;
+      const lobbyRoom = socketManager.rooms.get(`lobby:${lobbyId}`);
+      expect(lobbyRoom, `Lobby room 'lobby:${lobbyId}' should exist in socketManager.rooms`).to.not
+        .be.undefined;
+      expect(
+        lobbyRoom.has(clientForRoomTest.socket.id),
+        `Socket ID should be in lobby room 'lobby:${lobbyId}'`
+      ).to.be.true;
 
+      const statusRoom = socketManager.rooms.get(`status:${statusUserId}`);
+      expect(statusRoom, `Status room 'status:${statusUserId}' should exist in socketManager.rooms`)
+        .to.not.be.undefined;
+      expect(
+        statusRoom.has(clientForRoomTest.socket.id),
+        `Socket ID should be in status room 'status:${statusUserId}'`
+      ).to.be.true;
+
+      expect(
+        socketManager.io.sockets.adapter.rooms
+          .get(`user:${testUser1.id}`)
+          .has(clientForRoomTest.socket.id)
+      ).to.be.true;
 
       clientForRoomTest.disconnect();
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Wait for disconnect to be processed on the server
+      await new Promise((resolve) => setTimeout(resolve, 250)); // Increased delay for server processing
 
+      // Assertions after disconnect
       const matchRoomAfter = socketManager.rooms.get(`match:${matchRequestId}`);
-      expect(matchRoomAfter === undefined || !matchRoomAfter.has(clientForRoomTest.socket.id)).to.be.true;
+      expect(
+        matchRoomAfter === undefined || !matchRoomAfter.has(clientForRoomTest.socket.id),
+        'Socket ID should be removed from match room after disconnect'
+      ).to.be.true;
 
       const lobbyRoomAfter = socketManager.rooms.get(`lobby:${lobbyId}`);
-      expect(lobbyRoomAfter === undefined || !lobbyRoomAfter.has(clientForRoomTest.socket.id)).to.be.true;
+      expect(
+        lobbyRoomAfter === undefined || !lobbyRoomAfter.has(clientForRoomTest.socket.id),
+        'Socket ID should be removed from lobby room after disconnect'
+      ).to.be.true;
 
       const statusRoomAfter = socketManager.rooms.get(`status:${statusUserId}`);
-      expect(statusRoomAfter === undefined || !statusRoomAfter.has(clientForRoomTest.socket.id)).to.be.true;
+      expect(
+        statusRoomAfter === undefined || !statusRoomAfter.has(clientForRoomTest.socket.id),
+        'Socket ID should be removed from status room after disconnect'
+      ).to.be.true;
 
       const userRoomSockets = socketManager.io.sockets.adapter.rooms.get(`user:${testUser1.id}`);
-      expect(userRoomSockets === undefined || !userRoomSockets.has(clientForRoomTest.socket.id)).to.be.true;
+      expect(
+        userRoomSockets === undefined || !userRoomSockets.has(clientForRoomTest.socket.id),
+        'Socket ID should be removed from user-specific socket.io room after disconnect'
+      ).to.be.true;
 
       const userSocketSet = socketManager.userSockets.get(testUser1.id);
-      expect(userSocketSet === undefined || !userSocketSet.has(clientForRoomTest.socket.id)).to.be.true;
+      expect(
+        userSocketSet === undefined || !userSocketSet.has(clientForRoomTest.socket.id),
+        'Socket ID should be removed from userSockets map after disconnect'
+      ).to.be.true;
     });
   });
 });

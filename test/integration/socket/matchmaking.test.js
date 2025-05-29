@@ -82,7 +82,8 @@ describe('Socket.IO Matchmaking Events', () => {
   });
 
   describe('Matchmaking Subscription', () => {
-    beforeEach(async () => { // Connect clientUser1 for this block
+    beforeEach(async () => {
+      // Connect clientUser1 for this block
       if (clientUser1 && (!clientUser1.socket || !clientUser1.socket.connected)) {
         const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
         await clientUser1.connect();
@@ -141,7 +142,8 @@ describe('Socket.IO Matchmaking Events', () => {
   });
 
   describe('Match Formation Notifications', () => {
-    beforeEach(async () => { // Connect clientUser1 for this block
+    beforeEach(async () => {
+      // Connect clientUser1 for this block
       if (clientUser1 && (!clientUser1.socket || !clientUser1.socket.connected)) {
         const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
         await clientUser1.connect();
@@ -213,7 +215,8 @@ describe('Socket.IO Matchmaking Events', () => {
 
   // Moved tests from api/matchmaking.test.js
   describe('Matchmaking Subscription - Invalid Data', () => {
-    beforeEach(async () => { // Connect clientUser1 for this block
+    beforeEach(async () => {
+      // Connect clientUser1 for this block
       if (clientUser1 && (!clientUser1.socket || !clientUser1.socket.connected)) {
         const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
         await clientUser1.connect();

@@ -141,7 +141,9 @@ describe('UserService', () => {
         _id: 'userId123',
         status: 'active',
         // Ensure toObject is present if the service code calls it on the result of getUserById
-        toObject: function() { return this; }
+        toObject: function () {
+          return this;
+        }
       };
       sandbox.stub(userService, 'getUserById').resolves(mockUserInstance);
       const findByIdAndUpdateSpy = sandbox.spy(User, 'findByIdAndUpdate');
@@ -151,7 +153,8 @@ describe('UserService', () => {
       expect(result).to.deep.equal(mockUserInstance);
       expect(findByIdAndUpdateSpy.called).to.be.false;
       // Use the stubbed logger.info
-      expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be.true;
+      expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be
+        .true;
     });
 
     it('should return the user unmodified if updateData contains only non-allowed fields', async () => {
@@ -159,7 +162,9 @@ describe('UserService', () => {
         _id: 'userId123',
         status: 'active',
         email: 'original@example.com',
-        toObject: function() { return this; }
+        toObject: function () {
+          return this;
+        }
       };
       sandbox.stub(userService, 'getUserById').resolves(mockUserInstance);
       const findByIdAndUpdateSpy = sandbox.spy(User, 'findByIdAndUpdate');
@@ -172,10 +177,10 @@ describe('UserService', () => {
       expect(result).to.deep.equal(mockUserInstance);
       expect(findByIdAndUpdateSpy.called).to.be.false;
       // Use the stubbed logger.info
-      expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be.true;
+      expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be
+        .true;
     });
   });
-
 
   describe('upsertGameProfile', () => {
     it('should add new game profile', async () => {
