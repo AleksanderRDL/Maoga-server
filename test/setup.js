@@ -2,7 +2,7 @@ const databaseManager = require('../src/config/database');
 const { logger } = require('../src/utils');
 
 // Suppress logs during tests
-logger.level = 'debug';
+logger.level = 'silent';
 
 // Ensure we're using test database
 process.env.NODE_ENV = 'test';

@@ -64,13 +64,20 @@ class TestSocketClient {
       // Use the timeout from socket.io-client options for the connection attempt
       const connectTimeoutDuration = this.socket.io.opts.timeout || 8000;
       const connectionAttemptTimeout = setTimeout(() => {
-        logger.error(`Socket.IO client connection attempt timeout after ${connectTimeoutDuration}ms`, { serverUrl: this.serverUrl });
+        logger.error(
+          `Socket.IO client connection attempt timeout after ${connectTimeoutDuration}ms`,
+          { serverUrl: this.serverUrl }
+        );
         cleanup();
         // Important: Manually disconnect if the socket instance exists but didn't connect
         if (this.socket && !this.socket.connected) {
           this.socket.disconnect();
         }
-        reject(new Error(`Socket connection attempt timeout after ${connectTimeoutDuration}ms (in TestSocketClient.connect)`));
+        reject(
+          new Error(
+            `Socket connection attempt timeout after ${connectTimeoutDuration}ms (in TestSocketClient.connect)`
+          )
+        );
       }, connectTimeoutDuration);
 
       const cleanup = () => {
@@ -120,25 +127,42 @@ class TestSocketClient {
     this.socket.off(event, handler);
   }
 
-  waitForEvent(event, timeout = 5000) {
+  waitForEvent(event, predicateOrTimeout = () => true, timeoutArg = 5000) {
     if (!this.socket) {
-      return Promise.reject(new Error('Socket instance not created in TestSocketClient. Call constructor.'));
+      return Promise.reject(
+        new Error('Socket instance not created in TestSocketClient. Call constructor.')
+      );
     }
+
+    let predicate = predicateOrTimeout;
+    let timeout = timeoutArg;
+
+    // If the second argument is a number, it's the timeout, and predicate is default
+    if (typeof predicateOrTimeout === 'number') {
+      timeout = predicateOrTimeout;
+      predicate = () => true;
+    }
+
     return new Promise((resolve, reject) => {
       let timer; // Declare timer here so it's accessible in eventHandler
 
       const eventHandler = (data) => {
-        clearTimeout(timer);
-        this.socket.off(event, eventHandler); // Clean up this specific listener
-        resolve(data);
+        if (predicate(data)) {
+          // Check the predicate
+          clearTimeout(timer);
+          this.socket.off(event, eventHandler); // Clean up this specific listener
+          resolve(data);
+        }
       };
 
       timer = setTimeout(() => {
         this.socket.off(event, eventHandler); // Clean up listener on timeout
-        reject(new Error(`Timeout waiting for event: ${event} after ${timeout}ms`));
+        reject(
+          new Error(`Timeout waiting for event: ${event} (matching predicate) after ${timeout}ms`)
+        );
       }, timeout);
 
-      this.socket.on(event, eventHandler); // Use .on for flexibility, then .off
+      this.socket.on(event, eventHandler);
     });
   }
 }

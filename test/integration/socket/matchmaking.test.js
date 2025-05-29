@@ -21,7 +21,7 @@ describe('Socket.IO Matchmaking Events', () => {
 
   before(async () => {
     server = http.createServer(app);
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       server.listen(0, 'localhost', () => {
         const address = server.address();
         serverUrl = `http://localhost:${address.port}`;
@@ -30,9 +30,8 @@ describe('Socket.IO Matchmaking Events', () => {
       });
     });
     socketManager.initialize(server);
-    await new Promise(resolve => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
+    await new Promise((resolve) => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
     console.log('Test Setup: Socket.IO initialized for Matchmaking tests.');
-
   });
 
   after(async () => {
@@ -40,7 +39,7 @@ describe('Socket.IO Matchmaking Events', () => {
       socketManager.io.close();
     }
     if (server && server.listening) {
-      await new Promise(resolve => server.close(resolve));
+      await new Promise((resolve) => server.close(resolve));
       console.log(`Matchmaking Test Server closed`);
     }
   });
@@ -60,13 +59,12 @@ describe('Socket.IO Matchmaking Events', () => {
       socketManager.rooms.clear();
     }
 
-
     testGame = await Game.create(testGames[0]);
 
     const result1 = await authService.register({
       email: testUsers[0].email,
       username: testUsers[0].username,
-      password: testUsers[0].password,
+      password: testUsers[0].password
     });
     authTokenUser1 = result1.accessToken;
     testUser1 = result1.user;
@@ -82,7 +80,7 @@ describe('Socket.IO Matchmaking Events', () => {
   afterEach(async () => {
     if (clientUser1) clientUser1.disconnect();
     if (clientUser2) clientUser2.disconnect(); // Ensure clientUser2 is also cleaned up
-    await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Brief pause
   });
 
   describe('Matchmaking Subscription', () => {
@@ -90,11 +88,11 @@ describe('Socket.IO Matchmaking Events', () => {
       const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
         gameMode: 'competitive',
-        regions: ['NA'],
+        regions: ['NA']
       });
 
       clientUser1.emit('matchmaking:subscribe', {
-        requestId: matchRequest._id.toString(),
+        requestId: matchRequest._id.toString()
       });
 
       const subscribed = await clientUser1.waitForEvent('matchmaking:subscribed', 5000);
@@ -105,7 +103,7 @@ describe('Socket.IO Matchmaking Events', () => {
       const criteria = {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
         gameMode: 'competitive',
-        regions: ['NA'],
+        regions: ['NA']
       };
       const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, criteria);
 
@@ -124,7 +122,7 @@ describe('Socket.IO Matchmaking Events', () => {
     it('should unsubscribe from matchmaking updates', async () => {
       const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, {
         games: [{ gameId: testGame._id.toString() }],
-        gameMode: 'casual',
+        gameMode: 'casual'
       });
       const requestId = matchRequest._id.toString();
 
@@ -144,7 +142,7 @@ describe('Socket.IO Matchmaking Events', () => {
       const user2Data = await authService.register({
         email: testUsers[1].email,
         username: testUsers[1].username,
-        password: testUsers[1].password,
+        password: testUsers[1].password
       });
       authTokenUser2 = user2Data.accessToken;
       testUser2 = user2Data.user;
@@ -154,11 +152,10 @@ describe('Socket.IO Matchmaking Events', () => {
       await clientUser2.connect();
       await client2ConnectedPromise;
 
-
       const criteria = {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
         gameMode: 'competitive',
-        regions: ['NA'],
+        regions: ['NA']
       };
 
       // Submit requests via service
@@ -169,31 +166,33 @@ describe('Socket.IO Matchmaking Events', () => {
       clientUser1.emit('matchmaking:subscribe', { requestId: request1._id.toString() });
       clientUser2.emit('matchmaking:subscribe', { requestId: request2._id.toString() });
 
-      // Wait for subscription confirmations (optional, but good for ensuring order)
       await clientUser1.waitForEvent('matchmaking:subscribed', 3000);
       await clientUser2.waitForEvent('matchmaking:subscribed', 3000);
 
-      // Wait for match status updates.
-      // The matchmakingService.processSpecificQueue will eventually form a match
-      // and socketManager.emitMatchmakingStatus will send the 'matched' status.
+      // Wait specifically for the 'matched' status
       const [matchStatus1, matchStatus2] = await Promise.all([
-        clientUser1.waitForEvent('matchmaking:status', 12000), // Increased timeout
-        clientUser2.waitForEvent('matchmaking:status', 12000), // Increased timeout
+        clientUser1.waitForEvent('matchmaking:status', (data) => data.status === 'matched', 12000),
+        clientUser2.waitForEvent('matchmaking:status', (data) => data.status === 'matched', 12000)
       ]);
 
-      expect(matchStatus1.status).to.equal('matched');
-      expect(matchStatus2.status).to.equal('matched');
+      expect(matchStatus1.status).to.equal('matched'); // This assertion should now pass
+      expect(matchStatus2.status).to.equal('matched'); // This assertion should now pass
       expect(matchStatus1.matchId).to.exist;
       expect(matchStatus1.matchId).to.equal(matchStatus2.matchId);
       expect(matchStatus1.participants).to.be.an('array').with.lengthOf(2);
       expect(matchStatus2.participants).to.be.an('array').with.lengthOf(2);
 
-      // Verify participants include both users
-      const participantIds1 = matchStatus1.participants.map(p => p.userId);
-      const participantIds2 = matchStatus2.participants.map(p => p.userId);
+      const participantIds1 = matchStatus1.participants.map((p) => p.userId);
+      const participantIds2 = matchStatus2.participants.map((p) => p.userId);
 
-      expect(participantIds1).to.include.members([testUser1.id.toString(), testUser2.id.toString()]);
-      expect(participantIds2).to.include.members([testUser1.id.toString(), testUser2.id.toString()]);
+      expect(participantIds1).to.include.members([
+        testUser1.id.toString(),
+        testUser2.id.toString()
+      ]);
+      expect(participantIds2).to.include.members([
+        testUser1.id.toString(),
+        testUser2.id.toString()
+      ]);
     });
   });
 });

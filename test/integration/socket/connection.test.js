@@ -17,7 +17,7 @@ describe('Socket.IO Connection', () => {
 
   before(async () => {
     server = http.createServer(app);
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       server.listen(0, 'localhost', () => {
         const address = server.address();
         serverUrl = `http://localhost:${address.port}`;
@@ -26,7 +26,7 @@ describe('Socket.IO Connection', () => {
       });
     });
     socketManager.initialize(server);
-    await new Promise(resolve => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
+    await new Promise((resolve) => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
     console.log('Test Setup: Socket.IO initialized for Connection tests.');
   });
 
@@ -35,7 +35,7 @@ describe('Socket.IO Connection', () => {
       socketManager.io.close();
     }
     if (server && server.listening) {
-      await new Promise(resolve => server.close(resolve));
+      await new Promise((resolve) => server.close(resolve));
       console.log(`Connection Test Server closed`);
     }
   });
@@ -52,11 +52,10 @@ describe('Socket.IO Connection', () => {
       socketManager.rooms.clear();
     }
 
-
     const result = await authService.register({
       email: testUsers[0].email,
       username: testUsers[0].username,
-      password: testUsers[0].password,
+      password: testUsers[0].password
     });
     authTokenUser1 = result.accessToken;
     testUser1 = result.user;
@@ -69,7 +68,7 @@ describe('Socket.IO Connection', () => {
     if (client1) client1.disconnect();
     if (client2) client2.disconnect();
     if (watcherClient) watcherClient.disconnect();
-    await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause for server-side cleanup
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Brief pause for server-side cleanup
   });
 
   describe('Authentication', () => {
@@ -88,7 +87,8 @@ describe('Socket.IO Connection', () => {
         await clientWithNoToken.connect();
         expect.fail('Should have thrown an error for missing token');
       } catch (error) {
-        const errorMessage = error.data?.message || error.message || (error.error && error.error.message);
+        const errorMessage =
+          error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('No token provided');
       }
     });
@@ -99,7 +99,8 @@ describe('Socket.IO Connection', () => {
         await clientWithInvalidToken.connect();
         expect.fail('Should have thrown an error for invalid token');
       } catch (error) {
-        const errorMessage = error.data?.message || error.message || (error.error && error.error.message);
+        const errorMessage =
+          error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('Authentication failed');
       }
     });
@@ -109,7 +110,7 @@ describe('Socket.IO Connection', () => {
     it('should update user status to online on connect', async () => {
       await mainSocketClient.connect(); // Connects with testUser1's token
       // Give a moment for server-side status update
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       const onlineUsers = socketManager.getOnlineUsers([testUser1.id]);
       expect(onlineUsers).to.include(testUser1.id);
       expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(1);
@@ -121,17 +122,17 @@ describe('Socket.IO Connection', () => {
 
       await client1.connect();
       await client2.connect();
-      await new Promise(resolve => setTimeout(resolve, 100)); // allow server to process connections
+      await new Promise((resolve) => setTimeout(resolve, 100)); // allow server to process connections
 
       expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(2);
 
       client1.disconnect();
-      await new Promise(resolve => setTimeout(resolve, 250)); // Allow server to process disconnect fully
+      await new Promise((resolve) => setTimeout(resolve, 250)); // Allow server to process disconnect fully
 
       expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(1);
 
       client2.disconnect();
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(0);
     });
 
@@ -139,7 +140,7 @@ describe('Socket.IO Connection', () => {
       const watcherUser = await authService.register({
         email: 'watcher@example.com',
         username: 'watcher',
-        password: 'TestPassword123!',
+        password: 'TestPassword123!'
       });
       const watcherToken = watcherUser.accessToken;
       watcherClient = new TestSocketClient(serverUrl, watcherToken);

@@ -38,7 +38,7 @@ async function startServer() {
     });
 
     // Initialize Socket.IO
-    const io = socketManager.initialize(server);
+    const _io = socketManager.initialize(server);
     logger.info('Socket.IO initialized');
 
     // Start background jobs

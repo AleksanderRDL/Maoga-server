@@ -1,5 +1,3 @@
-const logger = require('../utils/logger');
-
 class SocketMetrics {
   constructor() {
     this.metrics = {

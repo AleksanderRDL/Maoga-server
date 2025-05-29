@@ -33,7 +33,7 @@ class MatchmakingService {
       const existingRequest = await MatchRequest.findActiveByUser(userId);
       if (existingRequest) {
         logger.warn(
-            `User ${userId} already has an active matchmaking request: ${existingRequest._id}`
+          `User ${userId} already has an active matchmaking request: ${existingRequest._id}`
         );
         throw new ConflictError('User already has an active matchmaking request');
       }
@@ -41,7 +41,7 @@ class MatchmakingService {
       const user = await User.findById(userId);
       if (!user || user.status !== 'active') {
         logger.warn(
-            `User ${userId} is not eligible for matchmaking (status: ${user ? user.status : 'not found'})`
+          `User ${userId} is not eligible for matchmaking (status: ${user ? user.status : 'not found'})`
         );
         throw new BadRequestError('User is not eligible for matchmaking');
       }
@@ -107,7 +107,10 @@ class MatchmakingService {
 
       const removed = queueManager.removeRequest(userId, requestId);
       if (!removed) {
-        logger.warn('Request not found in queue manager, but DB record exists and is being cancelled', { requestId, userId });
+        logger.warn(
+          'Request not found in queue manager, but DB record exists and is being cancelled',
+          { requestId, userId }
+        );
       }
 
       request.status = 'cancelled';
@@ -119,7 +122,10 @@ class MatchmakingService {
         searchDuration: request.searchDuration
       });
       // Notify client through socketManager
-      socketManager.emitMatchmakingStatus(requestId.toString(), { status: 'cancelled', searchTime: request.searchDuration });
+      socketManager.emitMatchmakingStatus(requestId.toString(), {
+        status: 'cancelled',
+        searchTime: request.searchDuration
+      });
       return request;
     } catch (error) {
       logger.error('Failed to cancel match request', {
@@ -136,8 +142,8 @@ class MatchmakingService {
       // Fetch the full Mongoose document, do not use .lean() here
       // as methods like getPrimaryGame() and virtuals like searchDuration are needed.
       const requestDoc = await MatchRequest.findActiveByUser(userId)
-          .populate('criteria.games.gameId', 'name slug')
-          .populate('preselectedUsers', 'username profile.displayName');
+        .populate('criteria.games.gameId', 'name slug')
+        .populate('preselectedUsers', 'username profile.displayName');
 
       if (!requestDoc) {
         return null;
@@ -147,15 +153,24 @@ class MatchmakingService {
       const primaryGame = requestDoc.getPrimaryGame(); // Relies on requestDoc being a Mongoose doc
       let potentialMatchesCount = 0;
 
-      if (primaryGame && primaryGame.gameId && requestDoc.criteria.gameMode && requestDoc.criteria.regions && requestDoc.criteria.regions.length > 0) {
+      if (
+        primaryGame &&
+        primaryGame.gameId &&
+        requestDoc.criteria.gameMode &&
+        requestDoc.criteria.regions &&
+        requestDoc.criteria.regions.length > 0
+      ) {
         const gameQueue = queueManager.getQueueRequests(
-            primaryGame.gameId.toString(),
-            requestDoc.criteria.gameMode,
-            requestDoc.criteria.regions[0] // Assuming the first region is the primary for queue lookup
+          primaryGame.gameId.toString(),
+          requestDoc.criteria.gameMode,
+          requestDoc.criteria.regions[0] // Assuming the first region is the primary for queue lookup
         );
-        potentialMatchesCount = gameQueue.length > 0 ? gameQueue.length -1 : 0; // Exclude the user themselves
+        potentialMatchesCount = gameQueue.length > 0 ? gameQueue.length - 1 : 0; // Exclude the user themselves
       } else {
-        logger.warn('Could not determine primary game, mode, or region for potential matches count', {requestId: requestDoc._id});
+        logger.warn(
+          'Could not determine primary game, mode, or region for potential matches count',
+          { requestId: requestDoc._id }
+        );
       }
 
       const estimatedTimeResult = this.estimateWaitTime(requestDoc); // Pass the Mongoose document
@@ -174,7 +189,7 @@ class MatchmakingService {
       logger.error('Failed to get current match request', {
         errorName: error.name,
         errorMessage: error.message,
-        userId,
+        userId
         // stack: error.stack // Uncomment for deeper debugging
       });
       throw error; // Rethrow to be caught by controller and global error handler
@@ -186,18 +201,18 @@ class MatchmakingService {
       const { page = 1, limit = 20, gameId, status } = options;
       const skip = (page - 1) * limit;
       const query = { 'participants.userId': userId };
-      if (gameId) query.gameId = gameId;
-      if (status) query.status = status;
+      if (gameId) {query.gameId = gameId;}
+      if (status) {query.status = status;}
 
       const [matches, total] = await Promise.all([
         MatchHistory.find(query)
-            .populate('gameId', 'name slug')
-            .populate('participants.userId', 'username profile.displayName')
-            .sort({ formedAt: -1 })
-            .limit(limit)
-            .skip(skip)
-            .lean(), // .lean() is okay here as we are just reading data for response
-        MatchHistory.countDocuments(query),
+          .populate('gameId', 'name slug')
+          .populate('participants.userId', 'username profile.displayName')
+          .sort({ formedAt: -1 })
+          .limit(limit)
+          .skip(skip)
+          .lean(), // .lean() is okay here as we are just reading data for response
+        MatchHistory.countDocuments(query)
       ]);
       return { matches, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
     } catch (error) {
@@ -208,7 +223,7 @@ class MatchmakingService {
 
   startProcessing() {
     const intervalTime = config.matchmaking.processIntervalMs;
-    if (this.processInterval) clearInterval(this.processInterval);
+    if (this.processInterval) {clearInterval(this.processInterval);}
     this.processInterval = setInterval(() => {
       logger.debug('Periodic matchmaking processing tick');
       this.processAllQueues();
@@ -225,7 +240,7 @@ class MatchmakingService {
   }
 
   async processAllQueues() {
-    if (this.isProcessing) return;
+    if (this.isProcessing) {return;}
     this.isProcessing = true;
     try {
       const stats = queueManager.getStats();
@@ -252,37 +267,67 @@ class MatchmakingService {
       const requests = queueManager.getQueueRequests(gameId, gameMode, region);
       logger.debug(`Found ${requests.length} requests in queue ${gameId}-${gameMode}-${region}`);
 
-      requests.forEach(async (requestData) => {
-        const request = requestData instanceof MatchRequest ? requestData : new MatchRequest(requestData);
-        const searchDuration = request.searchDuration === undefined ? (Date.now() - new Date(request.searchStartTime).getTime()) : request.searchDuration;
+      for (const requestData of requests) {
+        const request =
+          requestData instanceof MatchRequest ? requestData : new MatchRequest(requestData);
+        const searchDuration =
+          request.searchDuration === undefined
+            ? Date.now() - new Date(request.searchStartTime).getTime()
+            : request.searchDuration;
         const estimatedTimeResult = this.estimateWaitTime(request); // Pass Mongoose doc or new instance
         const statusPayload = {
           status: 'searching',
           searchTime: searchDuration,
-          potentialMatches: requests.length -1, // Other users in the same specific queue
-          estimatedTime: estimatedTimeResult ? estimatedTimeResult.estimated : 300000,
+          potentialMatches: requests.length - 1, // Other users in the same specific queue
+          estimatedTime: estimatedTimeResult ? estimatedTimeResult.estimated : 300000
         };
-        logger.debug(`Emitting 'searching' status update for request ${request._id} in processSpecificQueue`, statusPayload);
+        logger.debug(
+          `Emitting 'searching' status update for request ${request._id} in processSpecificQueue`,
+          statusPayload
+        );
         socketManager.emitMatchmakingStatus(request._id.toString(), statusPayload);
-      });
+      }
 
       if (requests.length < (matchAlgorithmService.config.minGroupSize || 2)) {
-        logger.info(`Not enough requests in queue ${gameId}-${gameMode}-${region} to form a match. Found ${requests.length}, need at least ${matchAlgorithmService.config.minGroupSize || 2}.`);
+        logger.info(
+          `Not enough requests in queue ${gameId}-${gameMode}-${region} to form a match. Found ${requests.length}, need at least ${matchAlgorithmService.config.minGroupSize || 2}.`
+        );
         return;
       }
 
-      const enrichedRequests = await matchAlgorithmService.enrichRequests(requests.map(r => r instanceof MatchRequest ? r : new MatchRequest(r)));
-      const matches = await matchAlgorithmService.findMatches(enrichedRequests, gameId, gameMode, region);
-      logger.info(`Match algorithm found ${matches.length} matches for queue ${gameId}-${gameMode}-${region}`);
+      const enrichedRequests = await matchAlgorithmService.enrichRequests(
+        requests.map((r) => (r instanceof MatchRequest ? r : new MatchRequest(r)))
+      );
+      const matches = await matchAlgorithmService.findMatches(
+        enrichedRequests,
+        gameId,
+        gameMode,
+        region
+      );
+      logger.info(
+        `Match algorithm found ${matches.length} matches for queue ${gameId}-${gameMode}-${region}`
+      );
 
       for (const match of matches) {
         await this.finalizeMatch(match);
       }
       if (matches.length > 0) {
-        queueManager.updateStats(true, matches.reduce((sum, match) => sum + (match.matchHistory.matchingMetrics?.totalSearchTime || 0), 0) / matches.length);
+        queueManager.updateStats(
+          true,
+          matches.reduce(
+            (sum, match) => sum + (match.matchHistory.matchingMetrics?.totalSearchTime || 0),
+            0
+          ) / matches.length
+        );
       }
     } catch (error) {
-      logger.error('Failed to process specific queue', { errorName: error.name, errorMessage: error.message, gameId, gameMode, region });
+      logger.error('Failed to process specific queue', {
+        errorName: error.name,
+        errorMessage: error.message,
+        gameId,
+        gameMode,
+        region
+      });
     }
   }
 
@@ -297,19 +342,32 @@ class MatchmakingService {
           matchId: matchHistory._id.toString(),
           participants: participants.map((p) => ({
             userId: p.user?._id.toString() || p.userId.toString(),
-            username: p.user?.username || 'Unknown',
-          })),
+            username: p.user?.username || 'Unknown'
+          }))
         };
-        logger.debug(`Emitting 'matched' status for participant ${participant.userId} (request: ${participant.requestId})`, statusPayload);
+        logger.debug(
+          `Emitting 'matched' status for participant ${participant.userId} (request: ${participant.requestId})`,
+          statusPayload
+        );
         socketManager.emitMatchmakingStatus(participant.requestId.toString(), statusPayload);
         // removeRequest expects userId as first arg
-        queueManager.removeRequest(participant.user?._id.toString() || participant.userId.toString(), participant.requestId.toString());
+        queueManager.removeRequest(
+          participant.user?._id.toString() || participant.userId.toString(),
+          participant.requestId.toString()
+        );
       });
 
-      logger.info('Match finalized and participants removed from queue', { matchId: matchHistory._id, participantCount: participants.length });
+      logger.info('Match finalized and participants removed from queue', {
+        matchId: matchHistory._id,
+        participantCount: participants.length
+      });
       return matchHistory;
     } catch (error) {
-      logger.error('Failed to finalize match', { errorName: error.name, errorMessage: error.message, matchId: matchData.matchHistory?._id });
+      logger.error('Failed to finalize match', {
+        errorName: error.name,
+        errorMessage: error.message,
+        matchId: matchData.matchHistory?._id
+      });
       throw error;
     }
   }
@@ -318,16 +376,24 @@ class MatchmakingService {
     try {
       const waitingRequests = await MatchRequest.find({
         status: 'searching',
-        searchStartTime: { $lte: new Date(Date.now() - 30000) },
+        searchStartTime: { $lte: new Date(Date.now() - 30000) }
       }).limit(50);
 
-      for (const request of waitingRequests) { // request is a Mongoose document here
+      for (const request of waitingRequests) {
+        // request is a Mongoose document here
         const relaxed = await matchAlgorithmService.applyCriteriaRelaxation(request); // Pass the Mongoose document
         if (relaxed) {
-          logger.debug('Relaxed criteria for request', { requestId: request._id, newRelaxationLevel: request.relaxationLevel });
+          logger.debug('Relaxed criteria for request', {
+            requestId: request._id,
+            newRelaxationLevel: request.relaxationLevel
+          });
           const primaryGame = request.getPrimaryGame(); // This will work
           if (primaryGame && primaryGame.gameId) {
-            this.processSpecificQueue(primaryGame.gameId.toString(), request.criteria.gameMode, request.criteria.regions[0] || 'ANY');
+            this.processSpecificQueue(
+              primaryGame.gameId.toString(),
+              request.criteria.gameMode,
+              request.criteria.regions[0] || 'ANY'
+            );
           }
         }
       }
@@ -340,10 +406,16 @@ class MatchmakingService {
     // requestDoc can be a Mongoose document or a plain object that MatchRequest can instantiate
     const request = requestDoc instanceof MatchRequest ? requestDoc : new MatchRequest(requestDoc);
 
-    const userIdString = request.userId ? (typeof request.userId.toString === 'function' ? request.userId.toString() : String(request.userId)) : null;
+    const userIdString = request.userId
+      ? typeof request.userId.toString === 'function'
+        ? request.userId.toString()
+        : String(request.userId)
+      : null;
 
     if (!userIdString) {
-      logger.warn('estimateWaitTime: userId missing or invalid on request object.', { requestData: requestDoc });
+      logger.warn('estimateWaitTime: userId missing or invalid on request object.', {
+        requestData: requestDoc
+      });
       return { estimated: 300000, confidence: 'low' }; // Default 5 mins
     }
 
@@ -362,10 +434,17 @@ class MatchmakingService {
     const region = queueInfo.region;
 
     let queueSize = 0;
-    if (stats.queueSizes && stats.queueSizes[gameId] && stats.queueSizes[gameId][gameMode] && stats.queueSizes[gameId][gameMode][region]) {
+    if (
+      stats.queueSizes &&
+      stats.queueSizes[gameId] &&
+      stats.queueSizes[gameId][gameMode] &&
+      stats.queueSizes[gameId][gameMode][region]
+    ) {
       queueSize = stats.queueSizes[gameId][gameMode][region];
     } else {
-      logger.warn(`estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`);
+      logger.warn(
+        `estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`
+      );
     }
 
     const minGroupSizeForMatch = matchAlgorithmService.config.minGroupSize || 2;
@@ -374,25 +453,32 @@ class MatchmakingService {
     if (queueSize > 0) {
       // Adjust based on current queue size relative to how many more are needed
       const playersNeeded = Math.max(0, minGroupSizeForMatch - queueSize);
-      if (playersNeeded === 0) { // Enough players are in the queue
+      if (playersNeeded === 0) {
+        // Enough players are in the queue
         estimatedTime = avgWaitTime / minGroupSizeForMatch; // Faster if queue is full or nearly full
       } else {
         estimatedTime = avgWaitTime * playersNeeded; // Slower if more players are needed
       }
-    } else { // Queue is empty (or only self)
+    } else {
+      // Queue is empty (or only self)
       estimatedTime = avgWaitTime * minGroupSizeForMatch;
     }
-
 
     estimatedTime = Math.min(estimatedTime, 30 * 60 * 1000); // Cap at 30 mins
     estimatedTime = Math.max(estimatedTime, 10000); // Minimum 10 seconds estimate
 
     logger.debug('Estimated wait time calculated', {
-      userId: userIdString, gameId, gameMode, region, queueSize, avgWaitTime, estimatedTime,
+      userId: userIdString,
+      gameId,
+      gameMode,
+      region,
+      queueSize,
+      avgWaitTime,
+      estimatedTime
     });
     return {
       estimated: estimatedTime,
-      confidence: queueSize >= minGroupSizeForMatch ? 'medium' : 'low',
+      confidence: queueSize >= minGroupSizeForMatch ? 'medium' : 'low'
     };
   }
 
