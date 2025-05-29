@@ -372,6 +372,22 @@ describe('Matchmaking API', () => {
     });
   });
 
+  describe('Matchmaking Subscription - Invalid Data', () => {
+    it('should emit an error if matchmaking:subscribe payload is missing requestId', async () => {
+      clientUser1.emit('matchmaking:subscribe', {}); // Missing requestId
+      const errorEvent = await clientUser1.waitForEvent('error', 3000);
+      expect(errorEvent).to.exist;
+      expect(errorEvent.message).to.include('Request ID (string) required');
+    });
+
+    it('should emit an error if matchmaking:subscribe requestId is not a string', async () => {
+      clientUser1.emit('matchmaking:subscribe', { requestId: 123 }); // Invalid type
+      const errorEvent = await clientUser1.waitForEvent('error', 3000);
+      expect(errorEvent).to.exist;
+      expect(errorEvent.message).to.include('Request ID (string) required');
+    });
+  });
+
   describe('GET /api/matchmaking/stats (Admin)', () => {
     let adminToken;
 

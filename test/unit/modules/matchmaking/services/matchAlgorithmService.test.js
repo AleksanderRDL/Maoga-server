@@ -78,6 +78,37 @@ describe('MatchAlgorithmService', () => {
 
       expect(score).to.equal(0);
     });
+
+    it('should return a neutral score if one user has no gameProfile for the game', () => {
+      const gameIdToUse = '507f1f77bcf86cd799439011';
+      const enrichedUser1 = { // Has profile
+        request: { criteria: { games: [{ gameId: gameIdToUse, weight: 10 }], gameMode: 'competitive', regions: ['NA'], skillPreference: 'similar', languagePreference: 'any' }, relaxationLevel: 0, getPrimaryGame: () => ({ gameId: gameIdToUse }) },
+        user: { _id: 'user1', gameProfiles: [{ gameId: gameIdToUse, skillLevel: 50 }] }
+      };
+      const enrichedUser2 = { // No gameProfiles array
+        request: { criteria: { games: [{ gameId: gameIdToUse, weight: 10 }], gameMode: 'competitive', regions: ['NA'], skillPreference: 'similar', languagePreference: 'any' }, relaxationLevel: 0, getPrimaryGame: () => ({ gameId: gameIdToUse }) },
+        user: { _id: 'user2', gameProfiles: [] } // Empty gameProfiles
+      };
+
+      const score = matchAlgorithmService.calculateCompatibility(enrichedUser1, enrichedUser2, gameIdToUse);
+      // Game, Mode, Region, Lang should be 1. Skill score defaults to 0.5 if data missing.
+      // (0.3*1) + (0.2*1) + (0.2*1) + (0.1*1) + (0.2*0.5) = 0.3 + 0.2 + 0.2 + 0.1 + 0.1 = 0.9
+      expect(score).to.be.closeTo(0.9, 0.01);
+    });
+
+    it('should return a neutral score if one user has no skillLevel in gameProfile', () => {
+      const gameIdToUse = '507f1f77bcf86cd799439011';
+      const enrichedUser1 = {
+        request: { criteria: { games: [{ gameId: gameIdToUse, weight: 10 }], gameMode: 'competitive', regions: ['NA'], skillPreference: 'similar', languagePreference: 'any' }, relaxationLevel: 0, getPrimaryGame: () => ({ gameId: gameIdToUse }) },
+        user: { _id: 'user1', gameProfiles: [{ gameId: gameIdToUse, skillLevel: 50 }] }
+      };
+      const enrichedUser2 = { // Profile exists, but no skillLevel
+        request: { criteria: { games: [{ gameId: gameIdToUse, weight: 10 }], gameMode: 'competitive', regions: ['NA'], skillPreference: 'similar', languagePreference: 'any' }, relaxationLevel: 0, getPrimaryGame: () => ({ gameId: gameIdToUse }) },
+        user: { _id: 'user2', gameProfiles: [{ gameId: gameIdToUse, rank: 'Gold' }] } // Missing skillLevel
+      };
+      const score = matchAlgorithmService.calculateCompatibility(enrichedUser1, enrichedUser2, gameIdToUse);
+      expect(score).to.be.closeTo(0.9, 0.01); // Same expectation as above
+    });
   });
 
   describe('calculateRegionScore', () => {

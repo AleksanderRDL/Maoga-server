@@ -3,12 +3,15 @@ const sinon = require('sinon');
 const userService = require('../../../../../src/modules/user/services/userService');
 const User = require('../../../../../src/modules/auth/models/User');
 const { NotFoundError, ConflictError } = require('../../../../../src/utils/errors');
+const logger = require('../../../../../src/utils/logger');
 
 describe('UserService', () => {
   let sandbox;
+  let loggerInfoStub;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
+    loggerInfoStub = sandbox.stub(logger, 'info');
   });
 
   afterEach(() => {
@@ -132,7 +135,47 @@ describe('UserService', () => {
         'profile.bio': 'New Bio'
       });
     });
+
+    it('should return the user unmodified if updateData is empty', async () => {
+      const mockUserInstance = {
+        _id: 'userId123',
+        status: 'active',
+        // Ensure toObject is present if the service code calls it on the result of getUserById
+        toObject: function() { return this; }
+      };
+      sandbox.stub(userService, 'getUserById').resolves(mockUserInstance);
+      const findByIdAndUpdateSpy = sandbox.spy(User, 'findByIdAndUpdate');
+
+      const result = await userService.updateProfile('userId123', {});
+
+      expect(result).to.deep.equal(mockUserInstance);
+      expect(findByIdAndUpdateSpy.called).to.be.false;
+      // Use the stubbed logger.info
+      expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be.true;
+    });
+
+    it('should return the user unmodified if updateData contains only non-allowed fields', async () => {
+      const mockUserInstance = {
+        _id: 'userId123',
+        status: 'active',
+        email: 'original@example.com',
+        toObject: function() { return this; }
+      };
+      sandbox.stub(userService, 'getUserById').resolves(mockUserInstance);
+      const findByIdAndUpdateSpy = sandbox.spy(User, 'findByIdAndUpdate');
+
+      const result = await userService.updateProfile('userId123', {
+        email: 'new@example.com',
+        role: 'admin'
+      });
+
+      expect(result).to.deep.equal(mockUserInstance);
+      expect(findByIdAndUpdateSpy.called).to.be.false;
+      // Use the stubbed logger.info
+      expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be.true;
+    });
   });
+
 
   describe('upsertGameProfile', () => {
     it('should add new game profile', async () => {
