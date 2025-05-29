@@ -1,3 +1,4 @@
+// test/integration/socket/connection.test.js
 const { expect } = require('chai');
 const app = require('../../../src/app'); // Ensure this path is correct
 const socketManager = require('../../../src/services/socketManager');
@@ -26,7 +27,7 @@ describe('Socket.IO Connection', () => {
       });
     });
     socketManager.initialize(server);
-    await new Promise((resolve) => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
+    await new Promise((resolve) => setTimeout(resolve, 200));
     console.log('Test Setup: Socket.IO initialized for Connection tests.');
   });
 
@@ -64,11 +65,11 @@ describe('Socket.IO Connection', () => {
   });
 
   afterEach(async () => {
-    if (mainSocketClient) mainSocketClient.disconnect();
-    if (client1) client1.disconnect();
-    if (client2) client2.disconnect();
-    if (watcherClient) watcherClient.disconnect();
-    await new Promise((resolve) => setTimeout(resolve, 100)); // Brief pause for server-side cleanup
+    if (mainSocketClient && mainSocketClient.socket && mainSocketClient.socket.connected) mainSocketClient.disconnect();
+    if (client1 && client1.socket && client1.socket.connected) client1.disconnect();
+    if (client2 && client2.socket && client2.socket.connected) client2.disconnect();
+    if (watcherClient && watcherClient.socket && watcherClient.socket.connected) watcherClient.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   describe('Authentication', () => {
@@ -88,8 +89,10 @@ describe('Socket.IO Connection', () => {
         expect.fail('Should have thrown an error for missing token');
       } catch (error) {
         const errorMessage =
-          error.data?.message || error.message || (error.error && error.error.message);
+            error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('No token provided');
+      } finally {
+        clientWithNoToken.disconnect();
       }
     });
 
@@ -100,16 +103,19 @@ describe('Socket.IO Connection', () => {
         expect.fail('Should have thrown an error for invalid token');
       } catch (error) {
         const errorMessage =
-          error.data?.message || error.message || (error.error && error.error.message);
+            error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('Authentication failed');
+      } finally {
+        clientWithInvalidToken.disconnect();
       }
     });
   });
 
   describe('User Presence', () => {
     it('should update user status to online on connect', async () => {
-      await mainSocketClient.connect(); // Connects with testUser1's token
-      // Give a moment for server-side status update
+      const connectedPromise = mainSocketClient.waitForEvent('connected', 5000);
+      await mainSocketClient.connect();
+      await connectedPromise;
       await new Promise((resolve) => setTimeout(resolve, 50));
       const onlineUsers = socketManager.getOnlineUsers([testUser1.id]);
       expect(onlineUsers).to.include(testUser1.id);
@@ -120,14 +126,18 @@ describe('Socket.IO Connection', () => {
       client1 = new TestSocketClient(serverUrl, authTokenUser1);
       client2 = new TestSocketClient(serverUrl, authTokenUser1);
 
+      const c1Connected = client1.waitForEvent('connected', 5000);
+      const c2Connected = client2.waitForEvent('connected', 5000);
       await client1.connect();
       await client2.connect();
-      await new Promise((resolve) => setTimeout(resolve, 100)); // allow server to process connections
+      await Promise.all([c1Connected, c2Connected]);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(2);
 
       client1.disconnect();
-      await new Promise((resolve) => setTimeout(resolve, 250)); // Allow server to process disconnect fully
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(1);
 
@@ -144,22 +154,25 @@ describe('Socket.IO Connection', () => {
       });
       const watcherToken = watcherUser.accessToken;
       watcherClient = new TestSocketClient(serverUrl, watcherToken);
+      const watcherConnectedPromise = watcherClient.waitForEvent('connected', 5000);
       await watcherClient.connect();
+      await watcherConnectedPromise;
+
 
       watcherClient.emit('user:status:subscribe', { userIds: [testUser1.id] });
 
-      // Expect initial status (likely offline)
       const initialStatus = await watcherClient.waitForEvent('user:status:update', 5000);
       expect(initialStatus.statuses[testUser1.id]).to.equal('offline');
 
-      // Now connect the target user
-      await mainSocketClient.connect(); // testUser1 connects
+      const mainClientConnectedPromise = mainSocketClient.waitForEvent('connected', 5000);
+      await mainSocketClient.connect();
+      await mainClientConnectedPromise;
 
       const statusUpdateOnline = await watcherClient.waitForEvent('user:status', 5000);
       expect(statusUpdateOnline.userId).to.equal(testUser1.id);
       expect(statusUpdateOnline.status).to.equal('online');
 
-      mainSocketClient.disconnect(); // Disconnect the target user
+      mainSocketClient.disconnect();
 
       const statusUpdateOffline = await watcherClient.waitForEvent('user:status', 5000);
       expect(statusUpdateOffline.userId).to.equal(testUser1.id);
@@ -168,11 +181,9 @@ describe('Socket.IO Connection', () => {
   });
 
   describe('User Status Subscription - Invalid Data', () => {
-    // Assuming watcherClient is set up as in your existing tests
     let watcherUser, watcherToken;
 
     beforeEach(async () => {
-      // Ensure watcherClient is set up if not already available globally in this describe
       const watcherResult = await authService.register({
         email: 'watcher@example.com',
         username: 'watcher',
@@ -182,16 +193,18 @@ describe('Socket.IO Connection', () => {
       watcherUser = watcherResult.user;
 
       watcherClient = new TestSocketClient(serverUrl, watcherToken);
+      const connectedPromise = watcherClient.waitForEvent('connected', 5000);
       await watcherClient.connect();
+      await connectedPromise;
     });
 
     afterEach(async () => {
-      if (watcherClient) watcherClient.disconnect();
+      if (watcherClient && watcherClient.socket && watcherClient.socket.connected) watcherClient.disconnect();
     });
 
 
     it('should emit an error if user:status:subscribe payload is missing userIds', async () => {
-      watcherClient.emit('user:status:subscribe', {}); // Missing userIds
+      watcherClient.emit('user:status:subscribe', {});
       const errorEvent = await watcherClient.waitForEvent('error', 3000);
       expect(errorEvent).to.exist;
       expect(errorEvent.message).to.include('User IDs must be a non-empty array');
@@ -212,32 +225,26 @@ describe('Socket.IO Connection', () => {
     });
 
     it('should gracefully handle non-string userIds in user:status:subscribe array', async () => {
-      // This tests if the server logs a warning and continues rather than crashing
-      // We don't expect a specific error event back to the client for this specific case by default,
-      // but we ensure the server doesn't break.
-      // The server-side `socketManager` already logs a warning for this.
       watcherClient.emit('user:status:subscribe', { userIds: [testUser1.id, 123, "anotherValidId"] });
-      // We can't easily assert server-side logs here, but we ensure no client-side error/crash.
-      // A more robust test might involve checking server logs if infrastructure allows.
-      // For now, just ensure it doesn't break the client or server.
-      await new Promise(resolve => setTimeout(resolve, 500)); // Give time for potential error
-      // No specific client-side error event expected for this partial invalid data,
-      // as the handler iterates and skips invalid items.
+      await new Promise(resolve => setTimeout(resolve, 500));
     });
   });
 
   describe('Room Cleanup on Disconnect', () => {
-    let clientForRoomTest; // Use a specific client for this test
+    let clientForRoomTest;
 
     beforeEach(async () => {
-      // A fresh client for each room test to avoid interference
       clientForRoomTest = new TestSocketClient(serverUrl, authTokenUser1);
+      // Setup listener *before* connect, then await connect, then await the custom event
+      const connectedPromise = clientForRoomTest.waitForEvent('connected', 8000); // Increased timeout
       await clientForRoomTest.connect();
-      await clientForRoomTest.waitForEvent('connected', 5000); // Ensure connection and 'connected' event received
+      await connectedPromise; // This ensures the 'connected' event is caught
     });
 
     afterEach(async () => {
-      if (clientForRoomTest) clientForRoomTest.disconnect();
+      if (clientForRoomTest && clientForRoomTest.socket && clientForRoomTest.socket.connected) {
+        clientForRoomTest.disconnect();
+      }
       await new Promise(resolve => setTimeout(resolve, 100));
     });
 
@@ -246,7 +253,6 @@ describe('Socket.IO Connection', () => {
       const lobbyId = 'lobbyTest456';
       const statusUserId = 'userToWatch789';
 
-      // Subscribe to a few rooms
       clientForRoomTest.emit('matchmaking:subscribe', { requestId: matchRequestId });
       await clientForRoomTest.waitForEvent('matchmaking:subscribed', 3000);
 
@@ -254,23 +260,18 @@ describe('Socket.IO Connection', () => {
       await clientForRoomTest.waitForEvent('lobby:subscribed', 3000);
 
       clientForRoomTest.emit('user:status:subscribe', { userIds: [statusUserId] });
-      // No specific 'subscribed' event for user:status, so just a small pause
       await new Promise(resolve => setTimeout(resolve, 50));
 
 
-      // Verify socket is in rooms before disconnect
       expect(socketManager.rooms.get(`match:${matchRequestId}`).has(clientForRoomTest.socket.id)).to.be.true;
       expect(socketManager.rooms.get(`lobby:${lobbyId}`).has(clientForRoomTest.socket.id)).to.be.true;
       expect(socketManager.rooms.get(`status:${statusUserId}`).has(clientForRoomTest.socket.id)).to.be.true;
-      // User-specific room is also joined by default
       expect(socketManager.io.sockets.adapter.rooms.get(`user:${testUser1.id}`).has(clientForRoomTest.socket.id)).to.be.true;
 
 
       clientForRoomTest.disconnect();
-      // Wait for server to process disconnect and cleanup
       await new Promise(resolve => setTimeout(resolve, 250));
 
-      // Verify socket is removed from rooms
       const matchRoomAfter = socketManager.rooms.get(`match:${matchRequestId}`);
       expect(matchRoomAfter === undefined || !matchRoomAfter.has(clientForRoomTest.socket.id)).to.be.true;
 
@@ -280,15 +281,9 @@ describe('Socket.IO Connection', () => {
       const statusRoomAfter = socketManager.rooms.get(`status:${statusUserId}`);
       expect(statusRoomAfter === undefined || !statusRoomAfter.has(clientForRoomTest.socket.id)).to.be.true;
 
-      // Check the default user-specific room (handled by socket.io itself typically but good to confirm our maps)
       const userRoomSockets = socketManager.io.sockets.adapter.rooms.get(`user:${testUser1.id}`);
-      // If the socket was the only one for this user, the room might be gone or empty.
-      // If there were other sockets, this one should be removed.
-      // Given this client is unique for the test, the room might be gone or this socket shouldn't be in it.
       expect(userRoomSockets === undefined || !userRoomSockets.has(clientForRoomTest.socket.id)).to.be.true;
 
-
-      // Also verify our internal userSockets map
       const userSocketSet = socketManager.userSockets.get(testUser1.id);
       expect(userSocketSet === undefined || !userSocketSet.has(clientForRoomTest.socket.id)).to.be.true;
     });

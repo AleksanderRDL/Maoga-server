@@ -10,7 +10,6 @@ describe('QueueManager', () => {
 
     beforeEach(() => {
         sandbox = sinon.createSandbox();
-        // Ensure queues are cleared before each test
         queueManager.clearQueues();
     });
 
@@ -19,50 +18,43 @@ describe('QueueManager', () => {
         queueManager.clearQueues();
     });
 
-    const createMockRequest = (userIdInput, gameIdInput, gameMode = 'competitive', region = 'NA', requestIdInput) => {
-        const resolvedUserId = userIdInput ? new mongoose.Types.ObjectId() : new mongoose.Types.ObjectId(); // Generate new valid ObjectId
-        const resolvedGameId = gameIdInput ? new mongoose.Types.ObjectId() : new mongoose.Types.ObjectId();
-        const resolvedRequestId = requestIdInput ? new mongoose.Types.ObjectId() : new mongoose.Types.ObjectId();
+    // Refined createMockRequest
+    const createMockRequest = (userIdStr, gameIdStr, gameMode = 'competitive', region = 'NA', requestIdStr, isExpiredVal = false) => {
+        const reqId = requestIdStr ? new mongoose.Types.ObjectId(requestIdStr) : new mongoose.Types.ObjectId();
+        const uId = new mongoose.Types.ObjectId(userIdStr);
+        const gId = new mongoose.Types.ObjectId(gameIdStr);
 
-        // If you specifically need to test with string representations for some reason, ensure they are valid hex strings.
-        // For general mocking, new ObjectIds are safer.
-        // We will use the input strings as keys for userRequestMap, but store ObjectIds in the request object.
+        const mockPrimaryGame = { gameId: gId, weight: 10 };
 
-        const mockPrimaryGame = { gameId: resolvedGameId };
-
+        // Create a real MatchRequest instance to ensure prototype methods are available
         const reqInstance = new MatchRequest({
-            _id: resolvedRequestId,
-            userId: resolvedUserId,
+            _id: reqId,
+            userId: uId,
             criteria: {
-                games: [{ gameId: resolvedGameId, weight: 10 }],
+                games: [{ gameId: gId, weight: 10 }],
                 gameMode: gameMode,
                 regions: [region],
+                groupSize: { min: 1, max: 5 }, // Added default to avoid potential validation issues
+                regionPreference: 'preferred', // Added default
+                languagePreference: 'any',   // Added default
+                skillPreference: 'similar',  // Added default
             },
             searchStartTime: new Date(),
         });
 
-        // Stub instance methods on the created MatchRequest instance
-        sinon.stub(reqInstance, 'isExpired').returns(false);
+        // Stub methods directly on the instance
+        sinon.stub(reqInstance, 'isExpired').returns(isExpiredVal);
         sinon.stub(reqInstance, 'getPrimaryGame').returns(mockPrimaryGame);
-
-        // Keep original userIdInput string for map lookups if needed by test logic
-        // but the instance should hold the ObjectId.
-        // Attach the input string if tests rely on it for map lookups.
-        reqInstance._testUserIdInput = userIdInput; // For map key reference if original string is used
 
         return reqInstance;
     };
 
-    // ...
+
     describe('addRequest', () => {
         it('should add a valid request to the queue', () => {
             const gameIdForTest = new mongoose.Types.ObjectId();
             const userIdForTest = new mongoose.Types.ObjectId();
             const request = createMockRequest(userIdForTest.toString(), gameIdForTest.toString());
-
-            // Modify the mock so getPrimaryGame returns the actual ObjectId used for gameIdForTest
-            request.getPrimaryGame.returns({ gameId: gameIdForTest });
-
 
             const result = queueManager.addRequest(request);
             expect(result).to.be.true;
@@ -77,20 +69,19 @@ describe('QueueManager', () => {
         });
 
         it('should throw ConflictError if user already has an active request', () => {
-            const userIdForTest = new mongoose.Types.ObjectId().toString();
-            const gameIdForTest = new mongoose.Types.ObjectId().toString();
-            const request1 = createMockRequest(userIdForTest, gameIdForTest);
+            const userIdForTestStr = new mongoose.Types.ObjectId().toString();
+            const gameIdForTestStr = new mongoose.Types.ObjectId().toString();
+            const request1 = createMockRequest(userIdForTestStr, gameIdForTestStr);
             queueManager.addRequest(request1);
 
-            const request2 = createMockRequest(userIdForTest, gameIdForTest);
+            const request2 = createMockRequest(userIdForTestStr, gameIdForTestStr); // Same user ID string
             expect(() => queueManager.addRequest(request2)).to.throw(ConflictError, 'User already has an active match request in queue');
         });
 
-        // Test for BadRequestError (Failure 11 was type error, now testing logic error)
         it('should throw BadRequestError if no primary game is specified (getPrimaryGame returns null)', () => {
-            const userIdForTest = new mongoose.Types.ObjectId().toString();
-            const request = createMockRequest(userIdForTest, new mongoose.Types.ObjectId().toString());
-            request.getPrimaryGame.returns(null); // Simulate no primary game
+            const userIdForTestStr = new mongoose.Types.ObjectId().toString();
+            const request = createMockRequest(userIdForTestStr, new mongoose.Types.ObjectId().toString());
+            request.getPrimaryGame.returns(null); // Override stub to simulate no primary game
             expect(() => queueManager.addRequest(request)).to.throw(BadRequestError, 'No primary game specified in match request criteria');
         });
     });
@@ -104,6 +95,7 @@ describe('QueueManager', () => {
             const request = createMockRequest(userIdStr, gameIdStr, 'competitive', 'NA', requestIdStr);
             queueManager.addRequest(request);
 
+            expect(queueManager.stats.activeRequests).to.equal(1);
             const result = queueManager.removeRequest(userIdStr, requestIdStr);
             expect(result).to.be.true;
             expect(queueManager.stats.activeRequests).to.equal(0);
@@ -111,14 +103,20 @@ describe('QueueManager', () => {
             expect(queueManager.getUserRequest(userIdStr)).to.be.undefined;
         });
 
-        it('should return false if request or user not found', () => {
+        it('should return false if request or user not found for removal', () => {
             const userIdStr = new mongoose.Types.ObjectId().toString();
             const gameIdStr = new mongoose.Types.ObjectId().toString();
-            const request = createMockRequest(userIdStr, gameIdStr);
+            const requestIdStr = new mongoose.Types.ObjectId().toString();
+            const request = createMockRequest(userIdStr, gameIdStr, 'competitive', 'NA', requestIdStr);
 
-            expect(queueManager.removeRequest(new mongoose.Types.ObjectId().toString(), 'req1')).to.be.false;
+            // Try removing non-existent user's request
+            expect(queueManager.removeRequest(new mongoose.Types.ObjectId().toString(), 'nonExistentReqId')).to.be.false;
+
             queueManager.addRequest(request);
+            // Try removing with correct user but wrong request ID
             expect(queueManager.removeRequest(userIdStr, new mongoose.Types.ObjectId().toString())).to.be.false;
+            // Try removing with wrong user but correct request ID (should also fail as map lookup is by userId)
+            expect(queueManager.removeRequest(new mongoose.Types.ObjectId().toString(), requestIdStr)).to.be.false;
         });
     });
 
@@ -132,7 +130,9 @@ describe('QueueManager', () => {
             const requests = queueManager.getQueueRequests(gameIdStr, 'mode1', 'region1');
             expect(requests).to.have.lengthOf(2);
         });
-        // ... existing test for non-existent queue
+        it('should return empty array for non-existent queue', () => {
+            expect(queueManager.getQueueRequests(new mongoose.Types.ObjectId().toString(), 'mode1', 'region1')).to.be.empty;
+        });
     });
 
     describe('getGameModeRequests', () => {
@@ -152,7 +152,6 @@ describe('QueueManager', () => {
             expect(requests.some(r => r.criteria.regions.includes('NA') && r.userId.toString() === userIdNA)).to.be.true;
             expect(requests.some(r => r.criteria.regions.includes('EU') && r.userId.toString() === userIdEU)).to.be.true;
         });
-        // ... existing test for empty array if game or game mode has no requests
         it('should return empty array if game or game mode has no requests', () => {
             expect(queueManager.getGameModeRequests(new mongoose.Types.ObjectId().toString(), 'mode')).to.be.empty;
             const gameId = new mongoose.Types.ObjectId().toString();
@@ -168,11 +167,8 @@ describe('QueueManager', () => {
             const userId1Str = new mongoose.Types.ObjectId().toString();
             const userId2Str = new mongoose.Types.ObjectId().toString();
 
-            const nonExpiredRequest = createMockRequest(userId1Str, gameIdStr);
-            const expiredRequest = createMockRequest(userId2Str, gameIdStr);
-
-            // Modify the stub on the instance
-            sinon.stub(expiredRequest, 'isExpired').returns(true); // Mark as expired
+            const nonExpiredRequest = createMockRequest(userId1Str, gameIdStr, 'competitive', 'NA', null, false);
+            const expiredRequest = createMockRequest(userId2Str, gameIdStr, 'competitive', 'NA', null, true); // isExpired is true
 
             queueManager.addRequest(nonExpiredRequest);
             queueManager.addRequest(expiredRequest);
@@ -183,7 +179,9 @@ describe('QueueManager', () => {
             expect(queueManager.stats.activeRequests).to.equal(1);
             expect(queueManager.getUserRequest(userId1Str)).to.exist;
             expect(queueManager.getUserRequest(userId2Str)).to.be.undefined;
-            expect(queueManager.getQueueRequests(gameIdStr, 'competitive', 'NA')).to.have.lengthOf(1);
+            const queue = queueManager.getQueueRequests(gameIdStr, 'competitive', 'NA');
+            expect(queue).to.have.lengthOf(1);
+            expect(queue[0].userId.toString()).to.equal(userId1Str);
         });
     });
 
@@ -202,7 +200,7 @@ describe('QueueManager', () => {
             expect(queueManager.queues.get(gameIdStr).has(mode)).to.be.true;
             expect(queueManager.queues.get(gameIdStr).get(mode).has(region)).to.be.true;
 
-            queueManager.removeRequest(userIdStr, requestIdStr);
+            queueManager.removeRequest(userIdStr, requestIdStr); // This internally calls cleanupEmptyQueues
 
             expect(queueManager.queues.has(gameIdStr)).to.be.false;
         });
@@ -211,8 +209,8 @@ describe('QueueManager', () => {
     describe('getStats', () => {
         it('should return current statistics', () => {
             const gameIdStr = new mongoose.Types.ObjectId().toString();
-            const request1 = createMockRequest(new mongoose.Types.ObjectId().toString(), gameIdStr);
-            const request2 = createMockRequest(new mongoose.Types.ObjectId().toString(), gameIdStr);
+            const request1 = createMockRequest(new mongoose.Types.ObjectId().toString(), gameIdStr, 'competitive', 'NA');
+            const request2 = createMockRequest(new mongoose.Types.ObjectId().toString(), gameIdStr, 'competitive', 'NA');
             queueManager.addRequest(request1);
             queueManager.addRequest(request2);
 
@@ -220,7 +218,7 @@ describe('QueueManager', () => {
             expect(stats.totalRequests).to.equal(2);
             expect(stats.activeRequests).to.equal(2);
             expect(stats.matchesFormed).to.equal(0);
-            expect(stats.queueSizes[gameIdStr].competitive.NA).to.equal(2);
+            expect(stats.queueSizes[gameIdStr]['competitive']['NA']).to.equal(2);
         });
     });
 });

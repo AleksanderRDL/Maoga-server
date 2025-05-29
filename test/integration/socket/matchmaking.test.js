@@ -1,3 +1,4 @@
+// test/integration/socket/matchmaking.test.js
 const { expect } = require('chai');
 const app = require('../../../src/app');
 const socketManager = require('../../../src/services/socketManager');
@@ -17,7 +18,7 @@ describe('Socket.IO Matchmaking Events', () => {
   let authTokenUser1, authTokenUser2;
   let testUser1, testUser2;
   let testGame;
-  let clientUser1, clientUser2; // Renamed for clarity
+  let clientUser1, clientUser2;
 
   before(async () => {
     server = http.createServer(app);
@@ -30,7 +31,7 @@ describe('Socket.IO Matchmaking Events', () => {
       });
     });
     socketManager.initialize(server);
-    await new Promise((resolve) => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
+    await new Promise((resolve) => setTimeout(resolve, 200));
     console.log('Test Setup: Socket.IO initialized for Matchmaking tests.');
   });
 
@@ -70,20 +71,25 @@ describe('Socket.IO Matchmaking Events', () => {
     testUser1 = result1.user;
 
     clientUser1 = new TestSocketClient(serverUrl, authTokenUser1);
-    // Connect clientUser1 here, as most tests will need it.
-    // Specific tests can manage their own client connections if needed.
-    const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
-    await clientUser1.connect();
-    await connectedEventPromise;
+    // Ensure clientUser1 is connected for most describe blocks
+    // This connection will be awaited in relevant `beforeEach` hooks within specific `describe` blocks
   });
 
   afterEach(async () => {
-    if (clientUser1) clientUser1.disconnect();
-    if (clientUser2) clientUser2.disconnect(); // Ensure clientUser2 is also cleaned up
-    await new Promise((resolve) => setTimeout(resolve, 100)); // Brief pause
+    if (clientUser1 && clientUser1.socket && clientUser1.socket.connected) clientUser1.disconnect();
+    if (clientUser2 && clientUser2.socket && clientUser2.socket.connected) clientUser2.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   describe('Matchmaking Subscription', () => {
+    beforeEach(async () => { // Connect clientUser1 for this block
+      if (clientUser1 && (!clientUser1.socket || !clientUser1.socket.connected)) {
+        const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
+        await clientUser1.connect();
+        await connectedEventPromise;
+      }
+    });
+
     it('should subscribe to matchmaking updates', async () => {
       const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
@@ -110,7 +116,6 @@ describe('Socket.IO Matchmaking Events', () => {
       clientUser1.emit('matchmaking:subscribe', { requestId: matchRequest._id.toString() });
       await clientUser1.waitForEvent('matchmaking:subscribed', 3000);
 
-      // Status update should now come shortly after subscription due to changes in socketManager
       const statusUpdate = await clientUser1.waitForEvent('matchmaking:status', 7000);
 
       expect(statusUpdate.requestId).to.equal(matchRequest._id.toString());
@@ -136,8 +141,15 @@ describe('Socket.IO Matchmaking Events', () => {
   });
 
   describe('Match Formation Notifications', () => {
+    beforeEach(async () => { // Connect clientUser1 for this block
+      if (clientUser1 && (!clientUser1.socket || !clientUser1.socket.connected)) {
+        const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
+        await clientUser1.connect();
+        await connectedEventPromise;
+      }
+    });
     it('should notify when match is found', async function () {
-      this.timeout(15000); // Increased timeout for multi-client test
+      this.timeout(15000);
 
       const user2Data = await authService.register({
         email: testUsers[1].email,
@@ -158,25 +170,28 @@ describe('Socket.IO Matchmaking Events', () => {
         regions: ['NA']
       };
 
-      // Submit requests via service
       const request1 = await matchmakingService.submitMatchRequest(testUser1.id, criteria);
       const request2 = await matchmakingService.submitMatchRequest(testUser2.id, criteria);
 
-      // Subscribe clients
       clientUser1.emit('matchmaking:subscribe', { requestId: request1._id.toString() });
       clientUser2.emit('matchmaking:subscribe', { requestId: request2._id.toString() });
 
       await clientUser1.waitForEvent('matchmaking:subscribed', 3000);
       await clientUser2.waitForEvent('matchmaking:subscribed', 3000);
 
-      // Wait specifically for the 'matched' status
+      // Manually trigger processing if automatic processing is too slow or unreliable for tests
+      // This requires matchmakingService to expose a method or for tests to rely on its internal timer
+      // For now, relying on the internal timer and increased test timeout.
+      // Alternatively, could add: await matchmakingService.processSpecificQueue(testGame._id.toString(), 'competitive', 'NA');
+      // and ensure queueManager.emit('requestAdded', ...) also triggers it.
+
       const [matchStatus1, matchStatus2] = await Promise.all([
         clientUser1.waitForEvent('matchmaking:status', (data) => data.status === 'matched', 12000),
         clientUser2.waitForEvent('matchmaking:status', (data) => data.status === 'matched', 12000)
       ]);
 
-      expect(matchStatus1.status).to.equal('matched'); // This assertion should now pass
-      expect(matchStatus2.status).to.equal('matched'); // This assertion should now pass
+      expect(matchStatus1.status).to.equal('matched');
+      expect(matchStatus2.status).to.equal('matched');
       expect(matchStatus1.matchId).to.exist;
       expect(matchStatus1.matchId).to.equal(matchStatus2.matchId);
       expect(matchStatus1.participants).to.be.an('array').with.lengthOf(2);
@@ -193,6 +208,31 @@ describe('Socket.IO Matchmaking Events', () => {
         testUser1.id.toString(),
         testUser2.id.toString()
       ]);
+    });
+  });
+
+  // Moved tests from api/matchmaking.test.js
+  describe('Matchmaking Subscription - Invalid Data', () => {
+    beforeEach(async () => { // Connect clientUser1 for this block
+      if (clientUser1 && (!clientUser1.socket || !clientUser1.socket.connected)) {
+        const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
+        await clientUser1.connect();
+        await connectedEventPromise;
+      }
+    });
+
+    it('should emit an error if matchmaking:subscribe payload is missing requestId', async () => {
+      clientUser1.emit('matchmaking:subscribe', {}); // Missing requestId
+      const errorEvent = await clientUser1.waitForEvent('error', 3000);
+      expect(errorEvent).to.exist;
+      expect(errorEvent.message).to.include('Request ID (string) required');
+    });
+
+    it('should emit an error if matchmaking:subscribe requestId is not a string', async () => {
+      clientUser1.emit('matchmaking:subscribe', { requestId: 123 }); // Invalid type
+      const errorEvent = await clientUser1.waitForEvent('error', 3000);
+      expect(errorEvent).to.exist;
+      expect(errorEvent.message).to.include('Request ID (string) required');
     });
   });
 });
