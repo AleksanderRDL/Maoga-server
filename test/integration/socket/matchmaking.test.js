@@ -56,7 +56,7 @@ describe('Socket.IO Matchmaking Events', () => {
     await User.deleteMany({});
     await Game.deleteMany({});
     await MatchRequest.deleteMany({});
-    queueManager.clearQueues(); // Clear queue manager state
+    if (queueManager.clearQueues) queueManager.clearQueues();
 
     testGame = await Game.create(testGames[0]);
 
@@ -68,9 +68,17 @@ describe('Socket.IO Matchmaking Events', () => {
     authToken = result.accessToken;
     testUser = result.user;
 
-    socketClient = new TestSocketClient();
-    await socketClient.connect(serverUrl, authToken);
-    await socketClient.waitForEvent('connected', 8000); // Wait for connected event
+    // Instantiate TestSocketClient with serverUrl and authToken
+    socketClient = new TestSocketClient(serverUrl, authToken);
+
+    // Start listening for the custom 'connected' event
+    const connectedEventPromise = socketClient.waitForEvent('connected', 8000);
+
+    // Establish the connection
+    await socketClient.connect();
+
+    // Await the server's custom 'connected' event to ensure client is fully ready
+    await connectedEventPromise;
   });
 
   afterEach(() => {

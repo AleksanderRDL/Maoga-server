@@ -56,8 +56,13 @@ describe('Socket.IO Connection', () => {
 
   beforeEach(async () => {
     await User.deleteMany({});
-    socketManager.userSockets.clear();
-    socketManager.socketUsers.clear();
+    // Clear socketManager state if necessary and possible from here
+    if (socketManager.userSockets && typeof socketManager.userSockets.clear === 'function') {
+      socketManager.userSockets.clear();
+    }
+    if (socketManager.socketUsers && typeof socketManager.socketUsers.clear === 'function') {
+      socketManager.socketUsers.clear();
+    }
 
     const result = await authService.register({
       email: testUsers[0].email,
@@ -67,7 +72,9 @@ describe('Socket.IO Connection', () => {
     authToken = result.accessToken;
     testUser = result.user;
 
-    socketClient = new TestSocketClient();
+    // Instantiate TestSocketClient, providing necessary args
+    // serverUrl and authToken are available here
+    socketClient = new TestSocketClient(serverUrl, authToken);
   });
 
   afterEach(() => {
@@ -78,31 +85,39 @@ describe('Socket.IO Connection', () => {
 
   describe('Authentication', () => {
     it('should connect with valid JWT token', async () => {
-      const socket = await socketClient.connect(serverUrl, authToken);
+      // socketClient is already instantiated with serverUrl and authToken
+
+      const connectedEventPromise = socketClient.waitForEvent('connected');
+
+      const socket = await socketClient.connect(); // Now call connect
       expect(socket.connected).to.be.true;
 
-      const connectedData = await socketClient.waitForEvent('connected');
+      const connectedData = await connectedEventPromise;
       expect(connectedData.userId).to.equal(testUser.id);
     });
 
     it('should reject connection without token', async () => {
+      const clientWithNoToken = new TestSocketClient(serverUrl, null); // Pass null for authToken
       try {
-        await socketClient.connect(serverUrl, null);
+        await clientWithNoToken.connect();
         expect.fail('Should have thrown error');
       } catch (error) {
         const errorMessage = error.data?.message || error.message;
         expect(errorMessage).to.include('No token provided');
       }
+      clientWithNoToken.disconnect(); // Ensure cleanup
     });
 
     it('should reject connection with invalid token', async () => {
+      const clientWithInvalidToken = new TestSocketClient(serverUrl, 'invalid-token');
       try {
-        await socketClient.connect(serverUrl, 'invalid-token');
+        await clientWithInvalidToken.connect();
         expect.fail('Should have thrown error');
       } catch (error) {
         const errorMessage = error.data?.message || error.message;
         expect(errorMessage).to.include('Authentication failed');
       }
+      clientWithInvalidToken.disconnect(); // Ensure cleanup
     });
   });
 
