@@ -6,6 +6,7 @@ const queueManager = require('./queueManager');
 const matchAlgorithmService = require('./matchAlgorithmService');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
+const socketManager = require('../../../services/socketManager');
 
 class MatchmakingService {
   constructor() {
@@ -65,6 +66,14 @@ class MatchmakingService {
 
       // Add to queue
       queueManager.addRequest(matchRequest);
+
+      // Emit initial status via Socket.IO
+      socketManager.emitMatchmakingStatus(matchRequest._id.toString(), {
+        status: 'searching',
+        searchTime: 0,
+        estimatedTime: this.estimateWaitTime(matchRequest).estimated,
+        potentialMatches: 0
+      });
 
       // TODO: Trigger notification service (Sprint 8)
 
@@ -274,6 +283,16 @@ class MatchmakingService {
         return;
       }
 
+      // Emit status update to all waiting users
+      requests.forEach((request) => {
+        socketManager.emitMatchmakingStatus(request._id.toString(), {
+          status: 'searching',
+          searchTime: request.searchDuration,
+          potentialMatches: requests.length - 1,
+          estimatedTime: this.estimateWaitTime(request).estimated
+        });
+      });
+
       // Process matches
       const matches = await matchAlgorithmService.processQueue(gameId, gameMode, region, requests);
 
@@ -302,6 +321,18 @@ class MatchmakingService {
   finalizeMatch(matchData) {
     try {
       const { matchHistory, participants } = matchData;
+
+      // Emit match found status to all participants
+      participants.forEach((participant) => {
+        socketManager.emitMatchmakingStatus(participant.requestId.toString(), {
+          status: 'matched',
+          matchId: matchHistory._id.toString(),
+          participants: participants.map((p) => ({
+            userId: p.userId.toString(),
+            username: p.username
+          }))
+        });
+      });
 
       // Remove participants from queue
       participants.forEach((participant) => {

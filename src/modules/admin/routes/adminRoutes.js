@@ -63,6 +63,8 @@ router.patch(
   adminController.updateReport
 );
 
+router.get('/stats/sockets', rateLimiter.relaxed, adminController.getSocketStats);
+
 // Dashboard statistics
 router.get('/stats/dashboard', rateLimiter.relaxed, adminController.getDashboardStats);
 

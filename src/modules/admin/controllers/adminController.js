@@ -1,5 +1,6 @@
 const adminService = require('../services/adminService');
 const asyncHandler = require('../../../utils/asyncHandler');
+const socketManager = require('../../../services/socketManager');
 
 /**
  * Get users list
@@ -141,6 +142,18 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get Socket.IO statistics
+ */
+const getSocketStats = asyncHandler(async (req, res) => {
+  const stats = socketManager.getStats();
+
+  res.status(200).json({
+    status: 'success',
+    data: { stats }
+  });
+});
+
 module.exports = {
   getUsers,
   getUserDetails,
@@ -148,5 +161,6 @@ module.exports = {
   getReports,
   getReportDetails,
   updateReport,
-  getDashboardStats
+  getDashboardStats,
+  getSocketStats
 };

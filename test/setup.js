@@ -1,5 +1,5 @@
 const databaseManager = require('../src/config/database');
-const logger = require('../src/utils/logger');
+const { logger } = require('../src/utils');
 
 // Suppress logs during tests
 logger.level = 'silent';

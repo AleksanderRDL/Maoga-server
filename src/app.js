@@ -3,8 +3,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
 const config = require('./config');
-const { requestLogger } = require('./middleware/requestLogger');
-const { globalErrorHandler } = require('./middleware/errorHandler');
+const { requestLogger } = require('./middleware');
+const { globalErrorHandler } = require('./middleware');
 const { NotFoundError } = require('./utils/errors');
 
 // Module imports

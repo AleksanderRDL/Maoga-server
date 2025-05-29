@@ -51,6 +51,15 @@ const baseConfig = {
   jobs: {
     gameSyncInterval: parseInt(process.env.GAME_SYNC_INTERVAL, 10) || 24 * 60 * 60 * 1000, // 24 hours
     gameSyncEnabled: process.env.GAME_SYNC_ENABLED !== 'false' // Default true
+  },
+  socketIO: {
+    pingTimeout: parseInt(process.env.SOCKET_PING_TIMEOUT, 10) || 60000,
+    pingInterval: parseInt(process.env.SOCKET_PING_INTERVAL, 10) || 25000,
+    maxHttpBufferSize: parseInt(process.env.SOCKET_MAX_HTTP_BUFFER_SIZE, 10) || 1e6,
+    transports: ['polling', 'websocket'],
+    cors: {
+      credentials: true
+    }
   }
 };
 
