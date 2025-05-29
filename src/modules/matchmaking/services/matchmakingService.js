@@ -201,8 +201,12 @@ class MatchmakingService {
       const { page = 1, limit = 20, gameId, status } = options;
       const skip = (page - 1) * limit;
       const query = { 'participants.userId': userId };
-      if (gameId) {query.gameId = gameId;}
-      if (status) {query.status = status;}
+      if (gameId) {
+        query.gameId = gameId;
+      }
+      if (status) {
+        query.status = status;
+      }
 
       const [matches, total] = await Promise.all([
         MatchHistory.find(query)
@@ -223,7 +227,9 @@ class MatchmakingService {
 
   startProcessing() {
     const intervalTime = config.matchmaking.processIntervalMs;
-    if (this.processInterval) {clearInterval(this.processInterval);}
+    if (this.processInterval) {
+      clearInterval(this.processInterval);
+    }
     this.processInterval = setInterval(() => {
       logger.debug('Periodic matchmaking processing tick');
       this.processAllQueues();
@@ -240,7 +246,9 @@ class MatchmakingService {
   }
 
   async processAllQueues() {
-    if (this.isProcessing) {return;}
+    if (this.isProcessing) {
+      return;
+    }
     this.isProcessing = true;
     try {
       const stats = queueManager.getStats();
