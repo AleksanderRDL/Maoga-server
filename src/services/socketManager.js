@@ -1,4 +1,3 @@
-// src/services/socketManager.js
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
@@ -21,10 +20,10 @@ class SocketManager {
         origin: config.cors.allowedOrigins,
         credentials: true
       },
-      pingTimeout: config.socketIO.pingTimeout, // Use config
-      pingInterval: config.socketIO.pingInterval, // Use config
-      maxHttpBufferSize: config.socketIO.maxHttpBufferSize, // Use config
-      transports: config.socketIO.transports // Use config
+      pingTimeout: config.socketIO.pingTimeout,
+      pingInterval: config.socketIO.pingInterval,
+      maxHttpBufferSize: config.socketIO.maxHttpBufferSize,
+      transports: config.socketIO.transports
     });
 
     this.setupMiddleware();
@@ -37,38 +36,69 @@ class SocketManager {
   setupMiddleware() {
     this.io.use(async (socket, next) => {
       try {
-        const token = socket.handshake.auth.token;
-        logger.debug('Socket middleware: Attempting authentication', {
+        logger.debug('Socket auth middleware: Starting authentication', {
           socketId: socket.id,
-          tokenProvided: !!token
+          hasToken: !!socket.handshake.auth.token
         });
 
+        const token = socket.handshake.auth.token;
+
         if (!token) {
-          logger.warn('Socket middleware: No token provided', { socketId: socket.id });
+          logger.warn('Socket auth middleware: No token provided', { socketId: socket.id });
           return next(new AuthenticationError('No token provided'));
         }
 
-        const decoded = jwt.verify(token, config.jwt.secret, {
-          issuer: config.jwt.issuer,
-          audience: config.jwt.audience
-        });
-        logger.debug('Socket middleware: Token decoded', {
+        logger.debug('Socket auth middleware: Verifying token', { socketId: socket.id });
+
+        let decoded;
+        try {
+          decoded = jwt.verify(token, config.jwt.secret, {
+            issuer: config.jwt.issuer,
+            audience: config.jwt.audience
+          });
+        } catch (jwtError) {
+          logger.error('Socket auth middleware: JWT verification failed', {
+            socketId: socket.id,
+            error: jwtError.message
+          });
+
+          if (jwtError.name === 'TokenExpiredError') {
+            return next(new AuthenticationError('Authentication failed: Token expired'));
+          } else if (jwtError.name === 'JsonWebTokenError') {
+            return next(new AuthenticationError(`Authentication failed: ${jwtError.message}`));
+          }
+          return next(new AuthenticationError('Authentication failed'));
+        }
+
+        logger.debug('Socket auth middleware: Token decoded successfully', {
           socketId: socket.id,
           userId: decoded.id
         });
 
-        const user = await User.findById(decoded.id).select('username status role'); // Added role
+        // Fetch user from database
+        logger.debug('Socket auth middleware: Fetching user from database', {
+          socketId: socket.id,
+          userId: decoded.id
+        });
+
+        const user = await User.findById(decoded.id).select('username status role');
 
         if (!user) {
-          logger.warn('Socket middleware: User not found for token', {
+          logger.warn('Socket auth middleware: User not found', {
             socketId: socket.id,
             userId: decoded.id
           });
           return next(new AuthenticationError('Invalid user: not found'));
         }
 
+        logger.debug('Socket auth middleware: User fetched successfully', {
+          socketId: socket.id,
+          userId: user._id.toString(),
+          status: user.status
+        });
+
         if (user.status !== 'active') {
-          logger.warn('Socket middleware: User not active', {
+          logger.warn('Socket auth middleware: User not active', {
             socketId: socket.id,
             userId: user._id.toString(),
             status: user.status
@@ -76,31 +106,31 @@ class SocketManager {
           return next(new AuthenticationError(`Invalid user: account is ${user.status}`));
         }
 
+        // CRITICAL: Set socket.userId and socket.user BEFORE calling next()
         socket.userId = user._id.toString();
         socket.user = {
           id: user._id.toString(),
           username: user.username,
-          role: user.role // Added role
+          role: user.role
         };
-        logger.info('Socket middleware: Authentication successful', {
+
+        logger.info('Socket auth middleware: Authentication successful, calling next()', {
           socketId: socket.id,
-          userId: socket.userId
+          userId: socket.userId,
+          username: socket.user.username
         });
+
         next();
       } catch (error) {
-        logger.error('Socket authentication failed in middleware', {
+        logger.error('Socket auth middleware: Unexpected error', {
+          socketId: socket.id,
           errorName: error.name,
           errorMessage: error.message,
-          socketId: socket.id
-          // stack: error.stack // Potentially too verbose for regular logs, but good for targeted debugging
+          stack: error.stack
         });
-        // Ensure the error passed to next() is an instance of Error
+
         if (error instanceof AuthenticationError) {
           next(error);
-        } else if (error.name === 'TokenExpiredError') {
-          next(new AuthenticationError('Authentication failed: Token expired'));
-        } else if (error.name === 'JsonWebTokenError') {
-          next(new AuthenticationError(`Authentication failed: ${error.message}`));
         } else {
           next(new AuthenticationError('Authentication failed'));
         }
@@ -110,42 +140,61 @@ class SocketManager {
 
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
-      logger.debug('Socket connection event received on server', {
+      logger.info('Socket.IO connection event fired', {
         socketId: socket.id,
-        userId: socket.userId
+        hasUserId: !!socket.userId,
+        userId: socket.userId || 'undefined'
       });
-      this.handleConnection(socket);
 
-      socket.on('disconnect', (reason) => this.handleDisconnect(socket, reason)); // Added reason
+      try {
+        this.handleConnection(socket);
+      } catch (error) {
+        logger.error('Error in handleConnection', {
+          socketId: socket.id,
+          error: error.message,
+          stack: error.stack
+        });
+        socket.disconnect(true);
+      }
+
+      socket.on('disconnect', (reason) => this.handleDisconnect(socket, reason));
       socket.on('error', (error) => this.handleError(socket, error));
 
       socket.on('matchmaking:subscribe', (data) => this.handleMatchmakingSubscribe(socket, data));
       socket.on('matchmaking:unsubscribe', (data) =>
-        this.handleMatchmakingUnsubscribe(socket, data)
+          this.handleMatchmakingUnsubscribe(socket, data)
       );
 
       socket.on('user:status:subscribe', (data) => this.handleUserStatusSubscribe(socket, data));
       socket.on('user:status:unsubscribe', (data) =>
-        this.handleUserStatusUnsubscribe(socket, data)
+          this.handleUserStatusUnsubscribe(socket, data)
       );
     });
   }
 
   handleConnection(socket) {
+    logger.debug('handleConnection: Starting', {
+      socketId: socket.id,
+      hasUserId: !!socket.userId,
+      userId: socket.userId || 'undefined'
+    });
+
     const userId = socket.userId;
 
     if (!userId) {
-      logger.error(
-          'CRITICAL: handleConnection called but socket.userId is missing. Disconnecting socket.',
-          { socketId: socket.id }
-      );
+      logger.error('handleConnection: socket.userId is missing!', {
+        socketId: socket.id,
+        socketKeys: Object.keys(socket),
+        userProp: socket.user
+      });
       socket.disconnect(true);
       return;
     }
 
-    logger.debug(
-        `handleConnection: Processing connection for socketId: ${socket.id}, userId: ${userId}`
-    );
+    logger.debug('handleConnection: Processing connection', {
+      socketId: socket.id,
+      userId: userId
+    });
 
     socketMetrics.recordConnection(true);
 
@@ -161,19 +210,28 @@ class SocketManager {
     // Join user-specific room
     const userRoom = `user:${userId}`;
     socket.join(userRoom);
-    logger.debug(`Socket ${socket.id} joined room ${userRoom} for userId ${userId}`);
+    logger.debug('handleConnection: Socket joined user room', {
+      socketId: socket.id,
+      userId: userId,
+      room: userRoom
+    });
 
     // Update user status to online
     this.updateUserStatus(userId, 'online');
 
-    logger.info('Socket connected and setup complete, emitting "connected" event', {
+    logger.info('handleConnection: About to emit connected event', {
       socketId: socket.id,
       userId: userId,
       totalUserSockets: this.userSockets.get(userId)?.size || 0
     });
 
-    // CRITICAL: This must always execute - emit the connected event
+    // CRITICAL: Emit the connected event
     socket.emit('connected', {
+      socketId: socket.id,
+      userId: userId
+    });
+
+    logger.info('handleConnection: Connected event emitted successfully', {
       socketId: socket.id,
       userId: userId
     });

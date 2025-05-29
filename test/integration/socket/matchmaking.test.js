@@ -34,6 +34,9 @@ describe('Socket.IO Matchmaking Events', () => {
     // Initialize Socket.IO AFTER the server is confirmed listening
     // Pass the actual http.Server instance
     socketManager.initialize(server);
+
+    // Add a small delay to ensure Socket.IO is fully initialized
+    await new Promise(resolve => setTimeout(resolve, 100));
   });
 
   after(async () => {
