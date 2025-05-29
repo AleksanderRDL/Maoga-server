@@ -32,6 +32,13 @@ describe('Socket.IO Connection', () => {
 
     // Add a small delay to ensure Socket.IO is fully initialized
     await new Promise(resolve => setTimeout(resolve, 100));
+
+
+    if (socketManager.io) {
+      console.log('Test Setup: Socket.IO initialized on server.');
+    } else {
+      console.error('Test Setup: Socket.IO FAILED to initialize on server.');
+    }
   });
 
   after(async () => {

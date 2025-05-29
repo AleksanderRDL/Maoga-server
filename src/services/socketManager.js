@@ -43,6 +43,8 @@ class SocketManager {
 
         const token = socket.handshake.auth.token;
 
+        logger.debug('Socket auth middleware: Received token for verification', { socketId: socket.id, token });
+
         if (!token) {
           logger.warn('Socket auth middleware: No token provided', { socketId: socket.id });
           return next(new AuthenticationError('No token provided'));
@@ -173,19 +175,21 @@ class SocketManager {
   }
 
   handleConnection(socket) {
-    logger.debug('handleConnection: Starting', {
+    logger.info('Socket.IO handleConnection: Entered', { // Change to info
       socketId: socket.id,
-      hasUserId: !!socket.userId,
-      userId: socket.userId || 'undefined'
+      hasUserId: !!socket.userId, // Log if userId is already present
+      userId: socket.userId || 'undefined',
+      handshakeAuthToken: socket.handshake.auth.token ? 'present' : 'missing' // Log token presence
     });
 
     const userId = socket.userId;
 
     if (!userId) {
-      logger.error('handleConnection: socket.userId is missing!', {
+      logger.error('CRITICAL: socket.userId is missing in handleConnection!', { // Change to error
         socketId: socket.id,
-        socketKeys: Object.keys(socket),
-        userProp: socket.user
+        // To see what IS on the socket object that might be relevant
+        handshakeAuth: socket.handshake.auth,
+        userProperty: socket.user // Check if socket.user was set but not socket.userId
       });
       socket.disconnect(true);
       return;
