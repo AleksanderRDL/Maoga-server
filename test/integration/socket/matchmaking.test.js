@@ -13,42 +13,35 @@ const http = require('http');
 
 describe('Socket.IO Matchmaking Events', () => {
   let server;
-  let serverUrl; // To store the server address
-  let authToken;
-  let testUser;
+  let serverUrl;
+  let authTokenUser1, authTokenUser2;
+  let testUser1, testUser2;
   let testGame;
-  let socketClient;
+  let clientUser1, clientUser2; // Renamed for clarity
 
   before(async () => {
-    server = http.createServer(app); // Create an HTTP server instance from your Express app
-
+    server = http.createServer(app);
     await new Promise(resolve => {
-      server.listen(0, 'localhost', () => { // Listen on port 0 for a random available port
+      server.listen(0, 'localhost', () => {
         const address = server.address();
         serverUrl = `http://localhost:${address.port}`;
-        // console.log(`Test server for ${__filename} listening on ${serverUrl}`); // Optional: for debugging
+        console.log(`Matchmaking Test Server listening on ${serverUrl}`);
         resolve();
       });
     });
-
-    // Initialize Socket.IO AFTER the server is confirmed listening
-    // Pass the actual http.Server instance
     socketManager.initialize(server);
+    await new Promise(resolve => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
+    console.log('Test Setup: Socket.IO initialized for Matchmaking tests.');
 
-    // Add a small delay to ensure Socket.IO is fully initialized
-    await new Promise(resolve => setTimeout(resolve, 100));
   });
 
   after(async () => {
-    // Ensure client sockets are disconnected first
-    // If socketClient is initialized per test in a beforeEach, handle its disconnection in an afterEach
-    // This is a general cleanup for the server related resources.
     if (socketManager.io) {
-      socketManager.io.close(); // Close all Socket.IO connections
+      socketManager.io.close();
     }
     if (server && server.listening) {
       await new Promise(resolve => server.close(resolve));
-      // console.log(`Test server for ${__filename} closed`); // Optional: for debugging
+      console.log(`Matchmaking Test Server closed`);
     }
   });
 
@@ -57,49 +50,54 @@ describe('Socket.IO Matchmaking Events', () => {
     await Game.deleteMany({});
     await MatchRequest.deleteMany({});
     if (queueManager.clearQueues) queueManager.clearQueues();
+    if (socketManager.userSockets && typeof socketManager.userSockets.clear === 'function') {
+      socketManager.userSockets.clear();
+    }
+    if (socketManager.socketUsers && typeof socketManager.socketUsers.clear === 'function') {
+      socketManager.socketUsers.clear();
+    }
+    if (socketManager.rooms && typeof socketManager.rooms.clear === 'function') {
+      socketManager.rooms.clear();
+    }
+
 
     testGame = await Game.create(testGames[0]);
 
-    const result = await authService.register({
+    const result1 = await authService.register({
       email: testUsers[0].email,
       username: testUsers[0].username,
-      password: testUsers[0].password
+      password: testUsers[0].password,
     });
-    authToken = result.accessToken;
-    testUser = result.user;
+    authTokenUser1 = result1.accessToken;
+    testUser1 = result1.user;
 
-    // Instantiate TestSocketClient with serverUrl and authToken
-    socketClient = new TestSocketClient(serverUrl, authToken);
-
-    // Start listening for the custom 'connected' event
-    const connectedEventPromise = socketClient.waitForEvent('connected', 8000);
-
-    // Establish the connection
-    await socketClient.connect();
-
-    // Await the server's custom 'connected' event to ensure client is fully ready
+    clientUser1 = new TestSocketClient(serverUrl, authTokenUser1);
+    // Connect clientUser1 here, as most tests will need it.
+    // Specific tests can manage their own client connections if needed.
+    const connectedEventPromise = clientUser1.waitForEvent('connected', 8000);
+    await clientUser1.connect();
     await connectedEventPromise;
   });
 
-  afterEach(() => {
-    if (socketClient) {
-      socketClient.disconnect();
-    }
+  afterEach(async () => {
+    if (clientUser1) clientUser1.disconnect();
+    if (clientUser2) clientUser2.disconnect(); // Ensure clientUser2 is also cleaned up
+    await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause
   });
 
   describe('Matchmaking Subscription', () => {
     it('should subscribe to matchmaking updates', async () => {
-      const matchRequest = await matchmakingService.submitMatchRequest(testUser.id, {
+      const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
         gameMode: 'competitive',
-        regions: ['NA']
+        regions: ['NA'],
       });
 
-      socketClient.emit('matchmaking:subscribe', {
-        requestId: matchRequest._id.toString()
+      clientUser1.emit('matchmaking:subscribe', {
+        requestId: matchRequest._id.toString(),
       });
 
-      const subscribed = await socketClient.waitForEvent('matchmaking:subscribed', 3000); // Increased timeout slightly
+      const subscribed = await clientUser1.waitForEvent('matchmaking:subscribed', 5000);
       expect(subscribed.requestId).to.equal(matchRequest._id.toString());
     });
 
@@ -107,22 +105,15 @@ describe('Socket.IO Matchmaking Events', () => {
       const criteria = {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
         gameMode: 'competitive',
-        regions: ['NA']
+        regions: ['NA'],
       };
+      const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, criteria);
 
-      // Submit the request *first*. The initial emit from submitMatchRequest might be missed
-      // as the client isn't subscribed to the match-specific room yet.
-      const matchRequest = await matchmakingService.submitMatchRequest(testUser.id, criteria);
+      clientUser1.emit('matchmaking:subscribe', { requestId: matchRequest._id.toString() });
+      await clientUser1.waitForEvent('matchmaking:subscribed', 3000);
 
-      // Now, subscribe the client to the specific match request room
-      socketClient.emit('matchmaking:subscribe', {
-        requestId: matchRequest._id.toString()
-      });
-      await socketClient.waitForEvent('matchmaking:subscribed', 2000); // Wait for subscription confirmation
-
-      // We expect a 'searching' status. This might come from the periodic queue processing
-      // or a triggered processing after request addition.
-      const statusUpdate = await socketClient.waitForEvent('matchmaking:status', 7000); // Increased timeout
+      // Status update should now come shortly after subscription due to changes in socketManager
+      const statusUpdate = await clientUser1.waitForEvent('matchmaking:status', 7000);
 
       expect(statusUpdate.requestId).to.equal(matchRequest._id.toString());
       expect(statusUpdate.status).to.equal('searching');
@@ -131,67 +122,78 @@ describe('Socket.IO Matchmaking Events', () => {
     });
 
     it('should unsubscribe from matchmaking updates', async () => {
-      const matchRequest = await matchmakingService.submitMatchRequest(testUser.id, {
+      const matchRequest = await matchmakingService.submitMatchRequest(testUser1.id, {
         games: [{ gameId: testGame._id.toString() }],
-        gameMode: 'casual'
+        gameMode: 'casual',
       });
-
       const requestId = matchRequest._id.toString();
 
-      socketClient.emit('matchmaking:subscribe', { requestId });
-      await socketClient.waitForEvent('matchmaking:subscribed');
+      clientUser1.emit('matchmaking:subscribe', { requestId });
+      await clientUser1.waitForEvent('matchmaking:subscribed', 3000);
 
-      socketClient.emit('matchmaking:unsubscribe', { requestId });
-      const unsubscribed = await socketClient.waitForEvent('matchmaking:unsubscribed');
+      clientUser1.emit('matchmaking:unsubscribe', { requestId });
+      const unsubscribed = await clientUser1.waitForEvent('matchmaking:unsubscribed', 3000);
       expect(unsubscribed.requestId).to.equal(requestId);
     });
   });
 
   describe('Match Formation Notifications', () => {
     it('should notify when match is found', async function () {
-      this.timeout(10000);
+      this.timeout(15000); // Increased timeout for multi-client test
 
-      const user2Result = await authService.register({
+      const user2Data = await authService.register({
         email: testUsers[1].email,
         username: testUsers[1].username,
-        password: testUsers[1].password
+        password: testUsers[1].password,
       });
+      authTokenUser2 = user2Data.accessToken;
+      testUser2 = user2Data.user;
 
-      const client2 = new TestSocketClient();
-      await client2.connect(serverUrl, user2Result.accessToken); // Pass serverUrl
+      clientUser2 = new TestSocketClient(serverUrl, authTokenUser2);
+      const client2ConnectedPromise = clientUser2.waitForEvent('connected', 8000);
+      await clientUser2.connect();
+      await client2ConnectedPromise;
+
 
       const criteria = {
         games: [{ gameId: testGame._id.toString(), weight: 10 }],
         gameMode: 'competitive',
-        regions: ['NA']
+        regions: ['NA'],
       };
 
-      const [request1, request2] = await Promise.all([
-        matchmakingService.submitMatchRequest(testUser.id, criteria),
-        matchmakingService.submitMatchRequest(user2Result.user.id, criteria)
-      ]);
+      // Submit requests via service
+      const request1 = await matchmakingService.submitMatchRequest(testUser1.id, criteria);
+      const request2 = await matchmakingService.submitMatchRequest(testUser2.id, criteria);
 
-      socketClient.emit('matchmaking:subscribe', {
-        requestId: request1._id.toString()
-      });
-      client2.emit('matchmaking:subscribe', {
-        requestId: request2._id.toString()
-      });
+      // Subscribe clients
+      clientUser1.emit('matchmaking:subscribe', { requestId: request1._id.toString() });
+      clientUser2.emit('matchmaking:subscribe', { requestId: request2._id.toString() });
 
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Delay for subscription processing
+      // Wait for subscription confirmations (optional, but good for ensuring order)
+      await clientUser1.waitForEvent('matchmaking:subscribed', 3000);
+      await clientUser2.waitForEvent('matchmaking:subscribed', 3000);
 
+      // Wait for match status updates.
+      // The matchmakingService.processSpecificQueue will eventually form a match
+      // and socketManager.emitMatchmakingStatus will send the 'matched' status.
       const [matchStatus1, matchStatus2] = await Promise.all([
-        socketClient.waitForEvent('matchmaking:status', 8000),
-        client2.waitForEvent('matchmaking:status', 8000)
+        clientUser1.waitForEvent('matchmaking:status', 12000), // Increased timeout
+        clientUser2.waitForEvent('matchmaking:status', 12000), // Increased timeout
       ]);
 
       expect(matchStatus1.status).to.equal('matched');
       expect(matchStatus2.status).to.equal('matched');
+      expect(matchStatus1.matchId).to.exist;
       expect(matchStatus1.matchId).to.equal(matchStatus2.matchId);
-      expect(matchStatus1.participants).to.have.lengthOf(2);
-      expect(matchStatus2.participants).to.have.lengthOf(2);
+      expect(matchStatus1.participants).to.be.an('array').with.lengthOf(2);
+      expect(matchStatus2.participants).to.be.an('array').with.lengthOf(2);
 
-      client2.disconnect();
+      // Verify participants include both users
+      const participantIds1 = matchStatus1.participants.map(p => p.userId);
+      const participantIds2 = matchStatus2.participants.map(p => p.userId);
+
+      expect(participantIds1).to.include.members([testUser1.id.toString(), testUser2.id.toString()]);
+      expect(participantIds2).to.include.members([testUser1.id.toString(), testUser2.id.toString()]);
     });
   });
 });

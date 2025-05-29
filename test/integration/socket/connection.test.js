@@ -1,182 +1,168 @@
 const { expect } = require('chai');
-const app = require('../../../src/app');
+const app = require('../../../src/app'); // Ensure this path is correct
 const socketManager = require('../../../src/services/socketManager');
 const authService = require('../../../src/modules/auth/services/authService');
 const User = require('../../../src/modules/auth/models/User');
-const TestSocketClient = require('../../utils/socketClient');
-const { testUsers } = require('../../fixtures/users');
+const TestSocketClient = require('../../utils/socketClient'); // Ensure this path is correct
+const { testUsers } = require('../../fixtures/users'); // Ensure this path is correct
 const http = require('http');
 
 describe('Socket.IO Connection', () => {
   let server;
-  let serverUrl; // To store the server address
-  let authToken;
-  let testUser;
-  let socketClient;
+  let serverUrl;
+  let authTokenUser1;
+  let testUser1;
+  let mainSocketClient; // For most tests
+  let client1, client2, watcherClient; // For multi-client tests
 
   before(async () => {
-    server = http.createServer(app); // Create an HTTP server instance from your Express app
-
+    server = http.createServer(app);
     await new Promise(resolve => {
-      server.listen(0, 'localhost', () => { // Listen on port 0 for a random available port
+      server.listen(0, 'localhost', () => {
         const address = server.address();
         serverUrl = `http://localhost:${address.port}`;
-        // console.log(`Test server for ${__filename} listening on ${serverUrl}`); // Optional: for debugging
+        console.log(`Connection Test Server listening on ${serverUrl}`);
         resolve();
       });
     });
-
-    // Initialize Socket.IO AFTER the server is confirmed listening
-    // Pass the actual http.Server instance
     socketManager.initialize(server);
-
-    // Add a small delay to ensure Socket.IO is fully initialized
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-
-    if (socketManager.io) {
-      console.log('Test Setup: Socket.IO initialized on server.');
-    } else {
-      console.error('Test Setup: Socket.IO FAILED to initialize on server.');
-    }
+    await new Promise(resolve => setTimeout(resolve, 200)); // Allow Socket.IO to fully start
+    console.log('Test Setup: Socket.IO initialized for Connection tests.');
   });
 
   after(async () => {
-    // Ensure client sockets are disconnected first
-    // If socketClient is initialized per test in a beforeEach, handle its disconnection in an afterEach
-    // This is a general cleanup for the server related resources.
     if (socketManager.io) {
-      socketManager.io.close(); // Close all Socket.IO connections
+      socketManager.io.close();
     }
     if (server && server.listening) {
       await new Promise(resolve => server.close(resolve));
-      // console.log(`Test server for ${__filename} closed`); // Optional: for debugging
+      console.log(`Connection Test Server closed`);
     }
   });
 
   beforeEach(async () => {
     await User.deleteMany({});
-    // Clear socketManager state if necessary and possible from here
     if (socketManager.userSockets && typeof socketManager.userSockets.clear === 'function') {
       socketManager.userSockets.clear();
     }
     if (socketManager.socketUsers && typeof socketManager.socketUsers.clear === 'function') {
       socketManager.socketUsers.clear();
     }
+    if (socketManager.rooms && typeof socketManager.rooms.clear === 'function') {
+      socketManager.rooms.clear();
+    }
+
 
     const result = await authService.register({
       email: testUsers[0].email,
       username: testUsers[0].username,
-      password: testUsers[0].password
+      password: testUsers[0].password,
     });
-    authToken = result.accessToken;
-    testUser = result.user;
+    authTokenUser1 = result.accessToken;
+    testUser1 = result.user;
 
-    // Instantiate TestSocketClient, providing necessary args
-    // serverUrl and authToken are available here
-    socketClient = new TestSocketClient(serverUrl, authToken);
+    mainSocketClient = new TestSocketClient(serverUrl, authTokenUser1);
   });
 
-  afterEach(() => {
-    if (socketClient) {
-      socketClient.disconnect();
-    }
+  afterEach(async () => {
+    if (mainSocketClient) mainSocketClient.disconnect();
+    if (client1) client1.disconnect();
+    if (client2) client2.disconnect();
+    if (watcherClient) watcherClient.disconnect();
+    await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause for server-side cleanup
   });
 
   describe('Authentication', () => {
     it('should connect with valid JWT token', async () => {
-      // socketClient is already instantiated with serverUrl and authToken
-
-      const connectedEventPromise = socketClient.waitForEvent('connected');
-
-      const socket = await socketClient.connect(); // Now call connect
+      const connectedEventPromise = mainSocketClient.waitForEvent('connected', 5000);
+      const socket = await mainSocketClient.connect();
       expect(socket.connected).to.be.true;
-
       const connectedData = await connectedEventPromise;
-      expect(connectedData.userId).to.equal(testUser.id);
+      expect(connectedData.userId).to.equal(testUser1.id);
+      expect(connectedData.socketId).to.equal(socket.id);
     });
 
     it('should reject connection without token', async () => {
-      const clientWithNoToken = new TestSocketClient(serverUrl, null); // Pass null for authToken
+      const clientWithNoToken = new TestSocketClient(serverUrl, null);
       try {
         await clientWithNoToken.connect();
-        expect.fail('Should have thrown error');
+        expect.fail('Should have thrown an error for missing token');
       } catch (error) {
-        const errorMessage = error.data?.message || error.message;
+        const errorMessage = error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('No token provided');
       }
-      clientWithNoToken.disconnect(); // Ensure cleanup
     });
 
     it('should reject connection with invalid token', async () => {
-      const clientWithInvalidToken = new TestSocketClient(serverUrl, 'invalid-token');
+      const clientWithInvalidToken = new TestSocketClient(serverUrl, 'invalid-jwt-token');
       try {
         await clientWithInvalidToken.connect();
-        expect.fail('Should have thrown error');
+        expect.fail('Should have thrown an error for invalid token');
       } catch (error) {
-        const errorMessage = error.data?.message || error.message;
+        const errorMessage = error.data?.message || error.message || (error.error && error.error.message);
         expect(errorMessage).to.include('Authentication failed');
       }
-      clientWithInvalidToken.disconnect(); // Ensure cleanup
     });
   });
 
   describe('User Presence', () => {
     it('should update user status to online on connect', async () => {
-      await socketClient.connect(serverUrl, authToken);
-
-      const onlineUsers = socketManager.getOnlineUsers([testUser.id]);
-      expect(onlineUsers).to.include(testUser.id);
-      expect(socketManager.getUserSocketCount(testUser.id)).to.equal(1);
+      await mainSocketClient.connect(); // Connects with testUser1's token
+      // Give a moment for server-side status update
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const onlineUsers = socketManager.getOnlineUsers([testUser1.id]);
+      expect(onlineUsers).to.include(testUser1.id);
+      expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(1);
     });
 
     it('should handle multiple connections from same user', async () => {
-      const client1 = new TestSocketClient();
-      const client2 = new TestSocketClient();
+      client1 = new TestSocketClient(serverUrl, authTokenUser1);
+      client2 = new TestSocketClient(serverUrl, authTokenUser1);
 
-      await client1.connect(serverUrl, authToken);
-      await client2.connect(serverUrl, authToken);
+      await client1.connect();
+      await client2.connect();
+      await new Promise(resolve => setTimeout(resolve, 100)); // allow server to process connections
 
-      expect(socketManager.getUserSocketCount(testUser.id)).to.equal(2);
+      expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(2);
 
       client1.disconnect();
-      await new Promise((resolve) => setTimeout(resolve, 200)); // Allow server to process disconnect
+      await new Promise(resolve => setTimeout(resolve, 250)); // Allow server to process disconnect fully
 
-      expect(socketManager.getUserSocketCount(testUser.id)).to.equal(1);
+      expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(1);
 
       client2.disconnect();
-      await new Promise((resolve) => setTimeout(resolve, 200)); // Allow server to process disconnect
-      expect(socketManager.getUserSocketCount(testUser.id)).to.equal(0);
+      await new Promise(resolve => setTimeout(resolve, 250));
+      expect(socketManager.getUserSocketCount(testUser1.id)).to.equal(0);
     });
 
     it('should emit user status updates', async () => {
-      const watcherClient = new TestSocketClient();
       const watcherUser = await authService.register({
         email: 'watcher@example.com',
         username: 'watcher',
-        password: 'TestPassword123!'
+        password: 'TestPassword123!',
       });
       const watcherToken = watcherUser.accessToken;
+      watcherClient = new TestSocketClient(serverUrl, watcherToken);
+      await watcherClient.connect();
 
-      await watcherClient.connect(serverUrl, watcherToken);
+      watcherClient.emit('user:status:subscribe', { userIds: [testUser1.id] });
 
-      watcherClient.emit('user:status:subscribe', { userIds: [testUser.id] });
+      // Expect initial status (likely offline)
+      const initialStatus = await watcherClient.waitForEvent('user:status:update', 5000);
+      expect(initialStatus.statuses[testUser1.id]).to.equal('offline');
 
-      const initialStatus = await watcherClient.waitForEvent('user:status:update');
-      expect(initialStatus.statuses[testUser.id]).to.equal('offline');
+      // Now connect the target user
+      await mainSocketClient.connect(); // testUser1 connects
 
-      await socketClient.connect(serverUrl, authToken);
+      const statusUpdateOnline = await watcherClient.waitForEvent('user:status', 5000);
+      expect(statusUpdateOnline.userId).to.equal(testUser1.id);
+      expect(statusUpdateOnline.status).to.equal('online');
 
-      const statusUpdate = await watcherClient.waitForEvent('user:status');
-      expect(statusUpdate.userId).to.equal(testUser.id);
-      expect(statusUpdate.status).to.equal('online');
+      mainSocketClient.disconnect(); // Disconnect the target user
 
-      socketClient.disconnect(); // Disconnect the target user
-      const offlineUpdate = await watcherClient.waitForEvent('user:status'); // Wait for the offline update
-      expect(offlineUpdate.userId).to.equal(testUser.id);
-      expect(offlineUpdate.status).to.equal('offline');
-
-      watcherClient.disconnect();
+      const statusUpdateOffline = await watcherClient.waitForEvent('user:status', 5000);
+      expect(statusUpdateOffline.userId).to.equal(testUser1.id);
+      expect(statusUpdateOffline.status).to.equal('offline');
     });
   });
 });
