@@ -136,28 +136,34 @@ class SocketManager {
 
     if (!userId) {
       logger.error(
-        'CRITICAL: handleConnection called but socket.userId is missing. Disconnecting socket.',
-        { socketId: socket.id }
+          'CRITICAL: handleConnection called but socket.userId is missing. Disconnecting socket.',
+          { socketId: socket.id }
       );
-      socket.disconnect(true); // Force disconnect
+      socket.disconnect(true);
       return;
     }
+
     logger.debug(
-      `handleConnection: Processing connection for socketId: ${socket.id}, userId: ${userId}`
+        `handleConnection: Processing connection for socketId: ${socket.id}, userId: ${userId}`
     );
 
     socketMetrics.recordConnection(true);
 
+    // Initialize user socket set if needed
     if (!this.userSockets.has(userId)) {
       this.userSockets.set(userId, new Set());
     }
+
+    // Add socket to user's set
     this.userSockets.get(userId).add(socket.id);
     this.socketUsers.set(socket.id, userId);
 
+    // Join user-specific room
     const userRoom = `user:${userId}`;
     socket.join(userRoom);
     logger.debug(`Socket ${socket.id} joined room ${userRoom} for userId ${userId}`);
 
+    // Update user status to online
     this.updateUserStatus(userId, 'online');
 
     logger.info('Socket connected and setup complete, emitting "connected" event', {
@@ -166,6 +172,7 @@ class SocketManager {
       totalUserSockets: this.userSockets.get(userId)?.size || 0
     });
 
+    // CRITICAL: This must always execute - emit the connected event
     socket.emit('connected', {
       socketId: socket.id,
       userId: userId

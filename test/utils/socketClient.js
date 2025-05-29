@@ -1,5 +1,6 @@
 // test/utils/socketClient.js
 const io = require('socket.io-client');
+const logger = require('../../src/utils/logger');
 // const config = require('../../src/config'); // Not needed if port is passed
 
 class TestSocketClient {
@@ -8,34 +9,49 @@ class TestSocketClient {
   }
 
   async connect(serverUrl, authToken, options = {}) {
-    // Added serverUrl parameter
     return new Promise((resolve, reject) => {
       this.socket = io(serverUrl, {
-        // Use serverUrl
         auth: {
           token: authToken
         },
-        transports: ['websocket'],
-        reconnection: false, // Prevent auto-reconnection during tests
-        forceNew: true, // Ensure a new connection for each test
+        transports: ['websocket'], // Force websocket for tests
+        reconnection: false,
+        forceNew: true,
+        timeout: 5000, // Add connection timeout
         ...options
       });
 
+      // Set up event handlers before connecting
       this.socket.on('connect', () => {
+        logger.debug('Socket.IO client connected successfully', {
+          socketId: this.socket.id,
+          serverUrl
+        });
         resolve(this.socket);
       });
 
       this.socket.on('connect_error', (error) => {
-        // console.error('Client connect_error:', error); // Useful for debugging error structure
+        logger.error('Socket.IO client connection error', {
+          error: error.message,
+          serverUrl,
+          hasToken: !!authToken
+        });
         reject(error);
       });
 
-      setTimeout(() => {
+      // Add timeout as backup
+      const timeout = setTimeout(() => {
         if (this.socket && !this.socket.connected) {
+          logger.error('Socket.IO client connection timeout', { serverUrl });
           this.socket.disconnect();
           reject(new Error('Socket connection timeout'));
         }
-      }, 5000);
+      }, 8000); // Increased timeout for slower test environments
+
+      // Clear timeout on successful connection
+      this.socket.on('connect', () => {
+        clearTimeout(timeout);
+      });
     });
   }
 

@@ -53,10 +53,10 @@ const baseConfig = {
     gameSyncEnabled: process.env.GAME_SYNC_ENABLED !== 'false' // Default true
   },
   socketIO: {
-    pingTimeout: parseInt(process.env.SOCKET_PING_TIMEOUT, 10) || 60000,
-    pingInterval: parseInt(process.env.SOCKET_PING_INTERVAL, 10) || 25000,
+    pingTimeout: parseInt(process.env.SOCKET_PING_TIMEOUT, 10) || (env === 'test' ? 3000 : 60000),
+    pingInterval: parseInt(process.env.SOCKET_PING_INTERVAL, 10) || (env === 'test' ? 1000 : 25000),
     maxHttpBufferSize: parseInt(process.env.SOCKET_MAX_HTTP_BUFFER_SIZE, 10) || 1e6,
-    transports: ['polling', 'websocket'],
+    transports: env === 'test' ? ['websocket'] : ['polling', 'websocket'], // Websocket only for tests
     cors: {
       credentials: true
     }
