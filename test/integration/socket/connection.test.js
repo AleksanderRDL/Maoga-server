@@ -5,6 +5,7 @@ const authService = require('../../../src/modules/auth/services/authService');
 const User = require('../../../src/modules/auth/models/User');
 const TestSocketClient = require('../../utils/socketClient');
 const { testUsers } = require('../../fixtures/users');
+const http = require('http');
 
 describe('Socket.IO Connection', () => {
   let server;
@@ -14,15 +15,32 @@ describe('Socket.IO Connection', () => {
   let socketClient;
 
   before(async () => {
-    server = app.listen(0); // Listen on a random port
-    const address = server.address();
-    serverUrl = `http://localhost:${address.port}`; // Construct the URL
+    server = http.createServer(app); // Create an HTTP server instance from your Express app
+
+    await new Promise(resolve => {
+      server.listen(0, 'localhost', () => { // Listen on port 0 for a random available port
+        const address = server.address();
+        serverUrl = `http://localhost:${address.port}`;
+        // console.log(`Test server for ${__filename} listening on ${serverUrl}`); // Optional: for debugging
+        resolve();
+      });
+    });
+
+    // Initialize Socket.IO AFTER the server is confirmed listening
+    // Pass the actual http.Server instance
     socketManager.initialize(server);
   });
 
   after(async () => {
-    if (server) {
-      await new Promise((resolve) => server.close(resolve));
+    // Ensure client sockets are disconnected first
+    // If socketClient is initialized per test in a beforeEach, handle its disconnection in an afterEach
+    // This is a general cleanup for the server related resources.
+    if (socketManager.io) {
+      socketManager.io.close(); // Close all Socket.IO connections
+    }
+    if (server && server.listening) {
+      await new Promise(resolve => server.close(resolve));
+      // console.log(`Test server for ${__filename} closed`); // Optional: for debugging
     }
   });
 
