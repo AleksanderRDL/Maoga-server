@@ -15,17 +15,16 @@ class SocketManager {
     this.rooms = new Map(); // roomId -> Set<socketId>
   }
 
-  /**
-   * Initialize Socket.IO server
-   */
   initialize(httpServer) {
     this.io = new Server(httpServer, {
       cors: {
         origin: config.cors.allowedOrigins,
         credentials: true
       },
-      pingTimeout: 60000,
-      pingInterval: 25000
+      pingTimeout: config.socketIO.pingTimeout, // Use config
+      pingInterval: config.socketIO.pingInterval, // Use config
+      maxHttpBufferSize: config.socketIO.maxHttpBufferSize, // Use config
+      transports: config.socketIO.transports // Use config
     });
 
     this.setupMiddleware();
@@ -35,64 +34,96 @@ class SocketManager {
     return this.io;
   }
 
-  /**
-   * Setup authentication middleware
-   */
   setupMiddleware() {
     this.io.use(async (socket, next) => {
       try {
         const token = socket.handshake.auth.token;
+        logger.debug('Socket middleware: Attempting authentication', {
+          socketId: socket.id,
+          tokenProvided: !!token
+        });
 
         if (!token) {
+          logger.warn('Socket middleware: No token provided', { socketId: socket.id });
           return next(new AuthenticationError('No token provided'));
         }
 
-        // Verify JWT token
-        const decoded = jwt.verify(token, config.jwt.secret);
+        const decoded = jwt.verify(token, config.jwt.secret, {
+          issuer: config.jwt.issuer,
+          audience: config.jwt.audience
+        });
+        logger.debug('Socket middleware: Token decoded', {
+          socketId: socket.id,
+          userId: decoded.id
+        });
 
-        // Get user from database
-        const user = await User.findById(decoded.id).select('username status');
+        const user = await User.findById(decoded.id).select('username status role'); // Added role
 
-        if (!user || user.status !== 'active') {
-          return next(new AuthenticationError('Invalid user'));
+        if (!user) {
+          logger.warn('Socket middleware: User not found for token', {
+            socketId: socket.id,
+            userId: decoded.id
+          });
+          return next(new AuthenticationError('Invalid user: not found'));
         }
 
-        // Attach user info to socket
+        if (user.status !== 'active') {
+          logger.warn('Socket middleware: User not active', {
+            socketId: socket.id,
+            userId: user._id.toString(),
+            status: user.status
+          });
+          return next(new AuthenticationError(`Invalid user: account is ${user.status}`));
+        }
+
         socket.userId = user._id.toString();
         socket.user = {
           id: user._id.toString(),
-          username: user.username
+          username: user.username,
+          role: user.role // Added role
         };
-
+        logger.info('Socket middleware: Authentication successful', {
+          socketId: socket.id,
+          userId: socket.userId
+        });
         next();
       } catch (error) {
-        logger.error('Socket authentication failed', {
-          error: error.message,
+        logger.error('Socket authentication failed in middleware', {
+          errorName: error.name,
+          errorMessage: error.message,
           socketId: socket.id
+          // stack: error.stack // Potentially too verbose for regular logs, but good for targeted debugging
         });
-        next(new AuthenticationError('Authentication failed'));
+        // Ensure the error passed to next() is an instance of Error
+        if (error instanceof AuthenticationError) {
+          next(error);
+        } else if (error.name === 'TokenExpiredError') {
+          next(new AuthenticationError('Authentication failed: Token expired'));
+        } else if (error.name === 'JsonWebTokenError') {
+          next(new AuthenticationError(`Authentication failed: ${error.message}`));
+        } else {
+          next(new AuthenticationError('Authentication failed'));
+        }
       }
     });
   }
 
-  /**
-   * Setup core event handlers
-   */
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
+      logger.debug('Socket connection event received on server', {
+        socketId: socket.id,
+        userId: socket.userId
+      });
       this.handleConnection(socket);
 
-      // Core events
-      socket.on('disconnect', () => this.handleDisconnect(socket));
+      socket.on('disconnect', (reason) => this.handleDisconnect(socket, reason)); // Added reason
       socket.on('error', (error) => this.handleError(socket, error));
 
-      // Matchmaking events
       socket.on('matchmaking:subscribe', (data) => this.handleMatchmakingSubscribe(socket, data));
       socket.on('matchmaking:unsubscribe', (data) =>
         this.handleMatchmakingUnsubscribe(socket, data)
       );
 
-      // User status events
       socket.on('user:status:subscribe', (data) => this.handleUserStatusSubscribe(socket, data));
       socket.on('user:status:unsubscribe', (data) =>
         this.handleUserStatusUnsubscribe(socket, data)
@@ -100,236 +131,321 @@ class SocketManager {
     });
   }
 
-  /**
-   * Handle new socket connection
-   */
   handleConnection(socket) {
     const userId = socket.userId;
 
-    // Record successful connection
+    if (!userId) {
+      logger.error(
+        'CRITICAL: handleConnection called but socket.userId is missing. Disconnecting socket.',
+        { socketId: socket.id }
+      );
+      socket.disconnect(true); // Force disconnect
+      return;
+    }
+    logger.debug(
+      `handleConnection: Processing connection for socketId: ${socket.id}, userId: ${userId}`
+    );
+
     socketMetrics.recordConnection(true);
 
-    // Add to user sockets mapping
     if (!this.userSockets.has(userId)) {
       this.userSockets.set(userId, new Set());
     }
     this.userSockets.get(userId).add(socket.id);
-
-    // Add to socket users mapping
     this.socketUsers.set(socket.id, userId);
 
-    // Join user-specific room
-    socket.join(`user:${userId}`);
+    const userRoom = `user:${userId}`;
+    socket.join(userRoom);
+    logger.debug(`Socket ${socket.id} joined room ${userRoom} for userId ${userId}`);
 
-    // Update user status to online
     this.updateUserStatus(userId, 'online');
 
-    logger.info('Socket connected', {
+    logger.info('Socket connected and setup complete, emitting "connected" event', {
       socketId: socket.id,
       userId: userId,
-      totalUserSockets: this.userSockets.get(userId).size
+      totalUserSockets: this.userSockets.get(userId)?.size || 0
     });
 
-    // Send connection confirmation
     socket.emit('connected', {
       socketId: socket.id,
       userId: userId
     });
   }
 
-  /**
-   * Handle socket disconnection
-   */
-  handleDisconnect(socket) {
-    const userId = socket.userId;
-
-    // Remove from mappings
-    const userSocketSet = this.userSockets.get(userId);
-    if (userSocketSet) {
-      userSocketSet.delete(socket.id);
-
-      // If no more sockets for this user, mark offline
-      if (userSocketSet.size === 0) {
-        this.userSockets.delete(userId);
-        this.updateUserStatus(userId, 'offline');
-      }
-    }
-
-    this.socketUsers.delete(socket.id);
-
-    // Clean up room memberships
-    this.cleanupSocketRooms(socket);
-
+  handleDisconnect(socket, reason) {
+    // Added reason parameter
+    const userId = socket.userId || this.socketUsers.get(socket.id); // Fallback if socket.userId was cleared
     logger.info('Socket disconnected', {
       socketId: socket.id,
       userId: userId,
-      remainingUserSockets: userSocketSet ? userSocketSet.size : 0
+      reason: reason // Log the reason for disconnection
     });
+
+    if (userId) {
+      const userSocketSet = this.userSockets.get(userId);
+      if (userSocketSet) {
+        userSocketSet.delete(socket.id);
+        logger.debug(
+          `Removed socket ${socket.id} from user ${userId}'s set. Remaining: ${userSocketSet.size}`
+        );
+        if (userSocketSet.size === 0) {
+          this.userSockets.delete(userId);
+          this.updateUserStatus(userId, 'offline');
+          logger.info(`User ${userId} is now offline.`);
+        }
+      } else {
+        logger.warn(
+          `User socket set not found for userId ${userId} during disconnect of socket ${socket.id}`
+        );
+      }
+    } else {
+      logger.warn(
+        `No userId found for disconnecting socket ${socket.id}. Cannot update presence accurately.`
+      );
+    }
+
+    this.socketUsers.delete(socket.id);
+    this.cleanupSocketRooms(socket); // Ensure this is robust
   }
 
-  /**
-   * Handle socket errors
-   */
   handleError(socket, error) {
-    logger.error('Socket error', {
+    logger.error('Socket error occurred', {
+      // Changed log message for clarity
       socketId: socket.id,
       userId: socket.userId,
-      error: error.message
+      errorName: error.name,
+      errorMessage: error.message
+      // stack: error.stack // Uncomment for deeper debugging
     });
-
-    // Record error metric
     socketMetrics.recordError(error);
   }
 
-  /**
-   * Handle matchmaking subscription
-   */
   handleMatchmakingSubscribe(socket, data) {
     try {
       const { requestId } = data;
+      logger.debug('Handling matchmaking:subscribe', {
+        socketId: socket.id,
+        userId: socket.userId,
+        data
+      });
 
       if (!requestId) {
-        socket.emit('error', { message: 'Request ID required' });
+        logger.warn('Matchmaking subscribe attempt with no requestId', {
+          socketId: socket.id,
+          userId: socket.userId
+        });
+        socket.emit('error', { message: 'Request ID required for matchmaking subscription' });
         return;
       }
 
       const roomName = `match:${requestId}`;
       socket.join(roomName);
+      this.rooms.set(roomName, (this.rooms.get(roomName) || new Set()).add(socket.id)); // Track room members
 
-      logger.debug('Socket subscribed to matchmaking', {
+      logger.info('Socket subscribed to matchmaking room', {
         socketId: socket.id,
         userId: socket.userId,
-        requestId
+        requestId,
+        roomName
       });
-
       socket.emit('matchmaking:subscribed', { requestId });
     } catch (error) {
       logger.error('Failed to subscribe to matchmaking', {
         error: error.message,
         socketId: socket.id,
+        userId: socket.userId,
         data
       });
-      socket.emit('error', { message: 'Failed to subscribe to matchmaking' });
+      socket.emit('error', {
+        message: 'Failed to subscribe to matchmaking: Internal server error'
+      });
     }
   }
 
-  /**
-   * Handle matchmaking unsubscription
-   */
   handleMatchmakingUnsubscribe(socket, data) {
     try {
       const { requestId } = data;
-
+      logger.debug('Handling matchmaking:unsubscribe', {
+        socketId: socket.id,
+        userId: socket.userId,
+        data
+      });
       if (!requestId) {
-        return;
+        logger.warn('Matchmaking unsubscribe attempt with no requestId', {
+          socketId: socket.id,
+          userId: socket.userId
+        });
+        return; // No error event needed as it's a "best effort"
       }
 
       const roomName = `match:${requestId}`;
       socket.leave(roomName);
+      const roomMembers = this.rooms.get(roomName);
+      if (roomMembers) {
+        roomMembers.delete(socket.id);
+        if (roomMembers.size === 0) {
+          this.rooms.delete(roomName);
+        }
+      }
 
-      logger.debug('Socket unsubscribed from matchmaking', {
+      logger.info('Socket unsubscribed from matchmaking room', {
+        // Changed from debug to info
         socketId: socket.id,
         userId: socket.userId,
-        requestId
+        requestId,
+        roomName
       });
-
       socket.emit('matchmaking:unsubscribed', { requestId });
     } catch (error) {
       logger.error('Failed to unsubscribe from matchmaking', {
         error: error.message,
-        socketId: socket.id
+        socketId: socket.id,
+        userId: socket.userId,
+        data
       });
+      // Optionally emit error to client if critical
     }
   }
 
-  /**
-   * Handle user status subscription
-   */
   handleUserStatusSubscribe(socket, data) {
     try {
       const { userIds } = data;
+      logger.debug('Handling user:status:subscribe', {
+        socketId: socket.id,
+        currentUserId: socket.userId,
+        data
+      });
 
-      if (!Array.isArray(userIds)) {
-        socket.emit('error', { message: 'User IDs must be an array' });
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        logger.warn('User status subscribe attempt with invalid or empty userIds array', {
+          socketId: socket.id,
+          data
+        });
+        socket.emit('error', { message: 'User IDs must be a non-empty array' });
         return;
       }
 
-      // Join status rooms for each user
-      userIds.forEach((userId) => {
-        socket.join(`status:${userId}`);
-      });
-
-      // Send current status for requested users
       const statuses = {};
-      userIds.forEach((userId) => {
-        statuses[userId] = this.userSockets.has(userId) ? 'online' : 'offline';
+      userIds.forEach((userIdToWatch) => {
+        if (typeof userIdToWatch !== 'string') {
+          // Basic validation
+          logger.warn('Invalid userId found in userIds array for status subscription', {
+            socketId: socket.id,
+            invalidUserId: userIdToWatch
+          });
+          return; // Skip invalid userId
+        }
+        const roomName = `status:${userIdToWatch}`;
+        socket.join(roomName);
+        this.rooms.set(roomName, (this.rooms.get(roomName) || new Set()).add(socket.id));
+        logger.debug(
+          `Socket ${socket.id} joined room ${roomName} for watching userId ${userIdToWatch}`
+        );
+        statuses[userIdToWatch] = this.userSockets.has(userIdToWatch) ? 'online' : 'offline';
       });
 
       socket.emit('user:status:update', { statuses });
-
-      logger.debug('Socket subscribed to user statuses', {
+      logger.info('Socket subscribed to user statuses', {
+        // Changed from debug to info
         socketId: socket.id,
-        userIds: userIds.length
+        userIdsWatched: userIds,
+        initialStatusesSent: statuses
       });
     } catch (error) {
       logger.error('Failed to subscribe to user status', {
         error: error.message,
-        socketId: socket.id
+        socketId: socket.id,
+        userId: socket.userId,
+        data
       });
-      socket.emit('error', { message: 'Failed to subscribe to user status' });
+      socket.emit('error', {
+        message: 'Failed to subscribe to user status: Internal server error'
+      });
     }
   }
 
-  /**
-   * Handle user status unsubscription
-   */
   handleUserStatusUnsubscribe(socket, data) {
     try {
       const { userIds } = data;
+      logger.debug('Handling user:status:unsubscribe', {
+        socketId: socket.id,
+        currentUserId: socket.userId,
+        data
+      });
 
       if (!Array.isArray(userIds)) {
-        return;
+        logger.warn('User status unsubscribe attempt with invalid userIds (not an array)', {
+          socketId: socket.id,
+          data
+        });
+        return; // No error to client needed, just log
       }
 
-      userIds.forEach((userId) => {
-        socket.leave(`status:${userId}`);
+      userIds.forEach((userIdToUnwatch) => {
+        if (typeof userIdToUnwatch !== 'string') {
+          logger.warn('Invalid userId found in userIds array for status unsubscription', {
+            socketId: socket.id,
+            invalidUserId: userIdToUnwatch
+          });
+          return; // Skip invalid userId
+        }
+        const roomName = `status:${userIdToUnwatch}`;
+        socket.leave(roomName);
+        const roomMembers = this.rooms.get(roomName);
+        if (roomMembers) {
+          roomMembers.delete(socket.id);
+          if (roomMembers.size === 0) {
+            this.rooms.delete(roomName);
+          }
+        }
+        logger.debug(
+          `Socket ${socket.id} left room ${roomName} for watching userId ${userIdToUnwatch}`
+        );
       });
 
-      logger.debug('Socket unsubscribed from user statuses', {
+      logger.info('Socket unsubscribed from user statuses', {
+        // Changed from debug to info
         socketId: socket.id,
-        userIds: userIds.length
+        userIdsUnwatched: userIds
       });
+      // No explicit "unsubscribed" event typically needed for status, client just stops receiving updates.
     } catch (error) {
       logger.error('Failed to unsubscribe from user status', {
         error: error.message,
-        socketId: socket.id
+        socketId: socket.id,
+        userId: socket.userId,
+        data
       });
     }
   }
 
-  /**
-   * Update user online status
-   */
   updateUserStatus(userId, status) {
     try {
-      // Emit to all sockets watching this user's status
-      this.io.to(`status:${userId}`).emit('user:status', {
+      const statusRoomName = `status:${userId}`;
+      logger.debug(`Updating user status and emitting to room ${statusRoomName}`, {
+        userId,
+        status
+      });
+      this.io.to(statusRoomName).emit('user:status', {
         userId,
         status,
         timestamp: new Date()
       });
 
-      // Update last active in database (non-blocking)
       if (status === 'online') {
-        User.findByIdAndUpdate(userId, { lastActive: new Date() }).catch((err) => {
-          logger.error('Failed to update user last active', {
-            error: err.message,
-            userId
+        User.findByIdAndUpdate(userId, { lastActive: new Date() }, { new: true }) // Added new: true
+          .exec() // Ensure it's a promise
+          .catch((err) => {
+            // Added .exec() and ensure proper catch
+            logger.error('Failed to update user last active timestamp in DB', {
+              error: err.message,
+              userId
+            });
           });
-        });
       }
+      logger.info(`User status for ${userId} updated to ${status} and event emitted.`);
     } catch (error) {
-      logger.error('Failed to update user status', {
+      logger.error('Failed to update user status and emit event', {
         error: error.message,
         userId,
         status
@@ -337,28 +453,42 @@ class SocketManager {
     }
   }
 
-  /**
-   * Emit matchmaking status update
-   */
   emitMatchmakingStatus(requestId, statusData) {
     try {
       const roomName = `match:${requestId}`;
+      logger.debug(`Emitting matchmaking:status to room ${roomName}`, { requestId, statusData });
       this.io.to(roomName).emit('matchmaking:status', {
         requestId,
         ...statusData,
         timestamp: new Date()
       });
-
-      logger.debug('Emitted matchmaking status', {
-        requestId,
-        status: statusData.status
-      });
+      logger.info(`Matchmaking status emitted for requestId ${requestId}: ${statusData.status}`);
     } catch (error) {
       logger.error('Failed to emit matchmaking status', {
         error: error.message,
-        requestId
+        requestId,
+        statusData
       });
     }
+  }
+
+  cleanupSocketRooms(socket) {
+    logger.debug(`Cleaning up rooms for socket ${socket.id}`);
+    const currentRooms = Array.from(socket.rooms); // Get a copy of rooms Set
+    currentRooms.forEach((roomName) => {
+      if (roomName !== socket.id) {
+        // Sockets are always in a room identified by their own ID
+        socket.leave(roomName);
+        const roomMembers = this.rooms.get(roomName);
+        if (roomMembers) {
+          roomMembers.delete(socket.id);
+          if (roomMembers.size === 0) {
+            this.rooms.delete(roomName);
+          }
+        }
+        logger.debug(`Socket ${socket.id} left room ${roomName}`);
+      }
+    });
   }
 
   /**
@@ -398,19 +528,6 @@ class SocketManager {
   }
 
   /**
-   * Clean up socket room memberships
-   */
-  cleanupSocketRooms(socket) {
-    // Leave all rooms except default room
-    const rooms = Array.from(socket.rooms);
-    rooms.forEach((room) => {
-      if (room !== socket.id) {
-        socket.leave(room);
-      }
-    });
-  }
-
-  /**
    * Get online users from a list
    */
   getOnlineUsers(userIds) {
@@ -439,19 +556,22 @@ class SocketManager {
     return this.socketUsers.size;
   }
 
-  /**
-   * Get socket statistics
-   */
   getStats() {
+    const activeRooms = {};
+    this.rooms.forEach((sockets, roomName) => {
+      activeRooms[roomName] = sockets.size;
+    });
+
     return {
       connectedUsers: this.getConnectedUsersCount(),
       totalSockets: this.getTotalSocketsCount(),
-      rooms: this.io.sockets.adapter.rooms.size,
+      // rooms: this.io.sockets.adapter.rooms.size, // This counts internal adapter rooms, might be different
+      trackedRoomsCount: this.rooms.size, // Count of rooms we are explicitly tracking
+      trackedRoomDetails: activeRooms, // Details of our tracked rooms
       metrics: socketMetrics.getMetrics(),
       timestamp: new Date()
     };
   }
 }
 
-// Export singleton instance
 module.exports = new SocketManager();

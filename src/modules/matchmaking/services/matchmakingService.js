@@ -7,89 +7,105 @@ const matchAlgorithmService = require('./matchAlgorithmService');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 const socketManager = require('../../../services/socketManager');
+const config = require('../../../config');
 
 class MatchmakingService {
   constructor() {
-    // Initialize match processor
     this.isProcessing = false;
     this.processInterval = null;
-
-    // Start periodic processing
     this.startProcessing();
 
-    // Listen for queue events
-    queueManager.on('requestAdded', ({ gameId, gameMode, region }) => {
-      // Trigger immediate processing for this queue
+    queueManager.on('requestAdded', ({ gameId, gameMode, region, requestId }) => {
+      // Added requestId
+      logger.info('queueManager emitted requestAdded event', {
+        gameId,
+        gameMode,
+        region,
+        requestId
+      });
       this.processSpecificQueue(gameId, gameMode, region);
     });
   }
 
-  /**
-   * Submit a matchmaking request
-   */
   async submitMatchRequest(userId, criteria) {
     try {
-      // Check for existing active request
+      logger.debug(`Attempting to submit match request for userId: ${userId}`, { criteria });
       const existingRequest = await MatchRequest.findActiveByUser(userId);
       if (existingRequest) {
+        logger.warn(
+          `User ${userId} already has an active matchmaking request: ${existingRequest._id}`
+        );
         throw new ConflictError('User already has an active matchmaking request');
       }
 
-      // Validate user
       const user = await User.findById(userId);
       if (!user || user.status !== 'active') {
+        logger.warn(
+          `User ${userId} is not eligible for matchmaking (status: ${user ? user.status : 'not found'})`
+        );
         throw new BadRequestError('User is not eligible for matchmaking');
       }
 
-      // Validate games
       if (!criteria.games || criteria.games.length === 0) {
         throw new BadRequestError('At least one game must be specified');
       }
-
       const gameIds = criteria.games.map((g) => g.gameId);
       const games = await Game.find({ _id: { $in: gameIds } });
       if (games.length !== gameIds.length) {
-        throw new BadRequestError('One or more invalid game IDs');
+        const foundGameIds = games.map((g) => g._id.toString());
+        const missingGameIds = gameIds.filter((id) => !foundGameIds.includes(id));
+        logger.warn('One or more invalid game IDs in match request', {
+          userId,
+          requestedGameIds: gameIds,
+          missingGameIds
+        });
+        throw new BadRequestError(`Invalid game IDs: ${missingGameIds.join(', ')}`);
       }
 
-      // Create match request
       const matchRequest = new MatchRequest({
         userId,
         criteria: {
           ...criteria,
-          languages: criteria.languages || [user.gamingPreferences?.languages?.[0] || 'en'],
-          regions: criteria.regions || ['ANY']
+          languages: criteria.languages || user.gamingPreferences?.languages || ['en'],
+          regions: criteria.regions || user.gamingPreferences?.regions || ['ANY'] // Use user preferences as fallback
         }
       });
-
       await matchRequest.save();
+      logger.info('Match request saved to DB', { requestId: matchRequest._id, userId });
 
-      // Add to queue
+      // Add to queue manager AFTER saving, so request object has ID
       queueManager.addRequest(matchRequest);
 
-      // Emit initial status via Socket.IO
-      socketManager.emitMatchmakingStatus(matchRequest._id.toString(), {
+      const estimatedTimeResult = this.estimateWaitTime(matchRequest);
+      const statusPayload = {
         status: 'searching',
-        searchTime: 0,
-        estimatedTime: this.estimateWaitTime(matchRequest).estimated,
+        searchTime: 0, // Initial search time is 0
+        estimatedTime: estimatedTimeResult ? estimatedTimeResult.estimated : 300000, // Default 5 mins if estimation fails
         potentialMatches: 0
-      });
+      };
+      logger.info(
+        `Emitting initial matchmaking:status for ${matchRequest._id.toString()}`,
+        statusPayload
+      );
+      socketManager.emitMatchmakingStatus(matchRequest._id.toString(), statusPayload);
+      // Note: Client needs to subscribe to `match:${matchRequest._id}` room to receive this.
+      // This implies the client should get the requestId from the API response first, then subscribe.
 
-      // TODO: Trigger notification service (Sprint 8)
+      // TODO: trigger notification service
 
-      logger.info('Match request submitted', {
+      logger.info('Match request submitted successfully and initial status emitted', {
         requestId: matchRequest._id,
         userId,
         primaryGame: matchRequest.getPrimaryGame()?.gameId,
         gameMode: criteria.gameMode
       });
-
       return matchRequest;
     } catch (error) {
       logger.error('Failed to submit match request', {
-        error: error.message,
-        userId,
-        criteria
+        errorName: error.name,
+        errorMessage: error.message,
+        userId
+        // stack: error.stack // For deeper debugging
       });
       throw error;
     }
@@ -220,12 +236,18 @@ class MatchmakingService {
    * Start periodic match processing
    */
   startProcessing() {
-    // Process queues every 5 seconds
-    this.processInterval = setInterval(() => {
-      this.processAllQueues();
-    }, 5000);
+    // Use the interval from config
+    const intervalTime = config.matchmaking.processIntervalMs;
 
-    logger.info('Matchmaking processor started');
+    if (this.processInterval) {
+      clearInterval(this.processInterval);
+    }
+
+    this.processInterval = setInterval(() => {
+      logger.debug('Periodic matchmaking processing tick');
+      this.processAllQueues();
+    }, intervalTime);
+    logger.info(`Matchmaking processor started with interval: ${intervalTime}ms`);
   }
 
   /**
@@ -276,41 +298,71 @@ class MatchmakingService {
    * Process a specific queue
    */
   async processSpecificQueue(gameId, gameMode, region) {
+    logger.info(`Processing specific queue: Game ${gameId}, Mode ${gameMode}, Region ${region}`);
     try {
       const requests = queueManager.getQueueRequests(gameId, gameMode, region);
+      logger.debug(`Found ${requests.length} requests in queue ${gameId}-${gameMode}-${region}`);
 
-      if (requests.length < 2) {
+      if (requests.length < (matchAlgorithmService.config.minGroupSize || 2)) {
+        // Use configured minGroupSize
+        logger.info(
+          `Not enough requests in queue ${gameId}-${gameMode}-${region} to form a match. Found ${requests.length}, need at least ${matchAlgorithmService.config.minGroupSize || 2}.`
+        );
         return;
       }
 
-      // Emit status update to all waiting users
       requests.forEach((request) => {
-        socketManager.emitMatchmakingStatus(request._id.toString(), {
+        // Ensure request is a Mongoose document instance for virtuals like searchDuration
+        const searchDuration =
+          typeof request.searchDuration === 'number'
+            ? request.searchDuration
+            : Date.now() - new Date(request.searchStartTime).getTime();
+        const estimatedTimeResult = this.estimateWaitTime(request);
+        const statusPayload = {
           status: 'searching',
-          searchTime: request.searchDuration,
-          potentialMatches: requests.length - 1,
-          estimatedTime: this.estimateWaitTime(request).estimated
-        });
+          searchTime: searchDuration,
+          potentialMatches: requests.length - 1, // Or a more sophisticated count
+          estimatedTime: estimatedTimeResult ? estimatedTimeResult.estimated : 300000
+        };
+        logger.debug(`Emitting searching status update for request ${request._id}`, statusPayload);
+        socketManager.emitMatchmakingStatus(request._id.toString(), statusPayload);
       });
 
-      // Process matches
-      const matches = await matchAlgorithmService.processQueue(gameId, gameMode, region, requests);
+      const enrichedRequests = await matchAlgorithmService.enrichRequests(
+        requests.map((r) => new MatchRequest(r))
+      ); // Ensure they are Mongoose docs for methods
 
-      // Handle formed matches
+      const matches = await matchAlgorithmService.findMatches(
+        enrichedRequests,
+        gameId,
+        gameMode,
+        region
+      );
+      logger.info(
+        `Match algorithm found ${matches.length} matches for queue ${gameId}-${gameMode}-${region}`
+      );
+
       for (const match of matches) {
         await this.finalizeMatch(match);
       }
 
-      // Update queue statistics
-      matches.forEach(() => {
-        queueManager.updateStats(true);
-      });
+      if (matches.length > 0) {
+        queueManager.updateStats(
+          true,
+          matches.reduce(
+            (sum, match) => sum + (match.matchHistory.matchingMetrics?.totalSearchTime || 0),
+            0
+          ) / matches.length
+        );
+      }
     } catch (error) {
       logger.error('Failed to process specific queue', {
-        error: error.message,
+        errorName: error.name,
+        errorMessage: error.message,
         gameId,
         gameMode,
         region
+        // stack: error.stack
       });
     }
   }
@@ -318,46 +370,55 @@ class MatchmakingService {
   /**
    * Finalize a match
    */
-  finalizeMatch(matchData) {
+  async finalizeMatch(matchData) {
     try {
       const { matchHistory, participants } = matchData;
+      logger.info(`Finalizing match ${matchHistory._id} with ${participants.length} participants.`);
 
-      // Emit match found status to all participants
       participants.forEach((participant) => {
-        socketManager.emitMatchmakingStatus(participant.requestId.toString(), {
+        const statusPayload = {
           status: 'matched',
           matchId: matchHistory._id.toString(),
           participants: participants.map((p) => ({
-            userId: p.userId.toString(),
-            username: p.username
+            // Ensure p.user is defined
+            userId: p.user?._id.toString() || p.userId.toString(), // Fallback if p.user isn't populated as expected
+            username: p.user?.username || 'Unknown'
           }))
-        });
+        };
+        logger.debug(
+          `Emitting 'matched' status for participant ${participant.userId} in request ${participant.requestId}`,
+          statusPayload
+        );
+        socketManager.emitMatchmakingStatus(participant.requestId.toString(), statusPayload);
       });
 
-      // Remove participants from queue
       participants.forEach((participant) => {
-        queueManager.removeRequest(participant.userId, participant.requestId);
+        queueManager.removeRequest(
+          participant.user?._id || participant.userId,
+          participant.requestId
+        );
       });
 
-      // TODO: Create lobby (Sprint 7) (remember to make method async when implemented)
+      // TODO: Create lobby (Sprint 7)
       // const lobby = await lobbyService.createLobby(matchHistory);
       // matchHistory.lobbyId = lobby._id;
       // await matchHistory.save();
 
       // TODO: Send notifications to participants (Sprint 8)
 
-      logger.info('Match finalized', {
+      logger.info('Match finalized and participants removed from queue', {
         matchId: matchHistory._id,
         participantCount: participants.length
       });
-
       return matchHistory;
     } catch (error) {
       logger.error('Failed to finalize match', {
-        error: error.message,
-        matchId: matchData.matchHistory._id
+        errorName: error.name,
+        errorMessage: error.message,
+        matchId: matchData.matchHistory?._id
+        // stack: error.stack
       });
-      throw error;
+      throw error; // Rethrow to be caught by caller if necessary
     }
   }
 
@@ -395,23 +456,55 @@ class MatchmakingService {
   /**
    * Estimate wait time for a request
    */
-  estimateWaitTime(request) {
+  estimateWaitTime(requestDoc) {
+    // Renamed from request to requestDoc to indicate it's a document
+    // Ensure requestDoc is a Mongoose document if it relies on virtuals or methods
+    const request = requestDoc instanceof MatchRequest ? requestDoc : new MatchRequest(requestDoc);
+
     const queueInfo = queueManager.getUserRequest(request.userId.toString());
     if (!queueInfo) {
-      return null;
+      logger.warn(`estimateWaitTime: No queue info found for user ${request.userId}`);
+      return { estimated: 300000, confidence: 'low' }; // Default 5 mins
     }
 
     const stats = queueManager.getStats();
-    const avgWaitTime = stats.avgWaitTime || 60000; // Default 1 minute
+    const avgWaitTime = stats.avgWaitTime > 0 ? stats.avgWaitTime : 60000;
 
-    // Simple estimation based on queue size and average wait time
-    const queueSize =
-      stats.queueSizes[queueInfo.gameId]?.[queueInfo.gameMode]?.[queueInfo.region] || 0;
-    const estimatedTime = (queueSize / 2) * avgWaitTime;
+    const gameId = queueInfo.gameId.toString();
+    const gameMode = queueInfo.gameMode;
+    const region = queueInfo.region;
 
+    let queueSize = 0;
+    if (
+      stats.queueSizes &&
+      stats.queueSizes[gameId] &&
+      stats.queueSizes[gameId][gameMode] &&
+      stats.queueSizes[gameId][gameMode][region]
+    ) {
+      queueSize = stats.queueSizes[gameId][gameMode][region];
+    } else {
+      logger.warn(`estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}`);
+    }
+
+    // Consider min group size, default to 2 if not specified in algorithm config
+    const minGroupSizeForMatch = matchAlgorithmService.config.minGroupSize || 2;
+    let estimatedTime = (queueSize / minGroupSizeForMatch) * avgWaitTime;
+
+    // Cap estimated time to avoid excessively long estimates, e.g., 30 minutes
+    estimatedTime = Math.min(estimatedTime, 30 * 60 * 1000);
+
+    logger.debug('Estimated wait time', {
+      userId: request.userId,
+      gameId,
+      gameMode,
+      region,
+      queueSize,
+      avgWaitTime,
+      estimatedTime
+    });
     return {
       estimated: estimatedTime,
-      confidence: queueSize > 10 ? 'high' : 'low'
+      confidence: queueSize > minGroupSizeForMatch * 2 ? 'medium' : 'low' // Adjusted confidence
     };
   }
 

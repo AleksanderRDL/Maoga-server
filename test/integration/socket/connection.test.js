@@ -8,13 +8,15 @@ const { testUsers } = require('../../fixtures/users');
 
 describe('Socket.IO Connection', () => {
   let server;
+  let serverUrl; // To store the server address
   let authToken;
   let testUser;
   let socketClient;
 
   before(async () => {
-    // Start server
-    server = app.listen(0); // Random port
+    server = app.listen(0); // Listen on a random port
+    const address = server.address();
+    serverUrl = `http://localhost:${address.port}`; // Construct the URL
     socketManager.initialize(server);
   });
 
@@ -25,12 +27,10 @@ describe('Socket.IO Connection', () => {
   });
 
   beforeEach(async () => {
-    // Clean up
     await User.deleteMany({});
     socketManager.userSockets.clear();
     socketManager.socketUsers.clear();
 
-    // Create test user
     const result = await authService.register({
       email: testUsers[0].email,
       username: testUsers[0].username,
@@ -50,7 +50,7 @@ describe('Socket.IO Connection', () => {
 
   describe('Authentication', () => {
     it('should connect with valid JWT token', async () => {
-      const socket = await socketClient.connect(authToken);
+      const socket = await socketClient.connect(serverUrl, authToken);
       expect(socket.connected).to.be.true;
 
       const connectedData = await socketClient.waitForEvent('connected');
@@ -59,26 +59,28 @@ describe('Socket.IO Connection', () => {
 
     it('should reject connection without token', async () => {
       try {
-        await socketClient.connect(null);
+        await socketClient.connect(serverUrl, null);
         expect.fail('Should have thrown error');
       } catch (error) {
-        expect(error.message).to.include('No token provided');
+        const errorMessage = error.data?.message || error.message;
+        expect(errorMessage).to.include('No token provided');
       }
     });
 
     it('should reject connection with invalid token', async () => {
       try {
-        await socketClient.connect('invalid-token');
+        await socketClient.connect(serverUrl, 'invalid-token');
         expect.fail('Should have thrown error');
       } catch (error) {
-        expect(error.message).to.include('Authentication failed');
+        const errorMessage = error.data?.message || error.message;
+        expect(errorMessage).to.include('Authentication failed');
       }
     });
   });
 
   describe('User Presence', () => {
     it('should update user status to online on connect', async () => {
-      await socketClient.connect(authToken);
+      await socketClient.connect(serverUrl, authToken);
 
       const onlineUsers = socketManager.getOnlineUsers([testUser.id]);
       expect(onlineUsers).to.include(testUser.id);
@@ -89,43 +91,47 @@ describe('Socket.IO Connection', () => {
       const client1 = new TestSocketClient();
       const client2 = new TestSocketClient();
 
-      await client1.connect(authToken);
-      await client2.connect(authToken);
+      await client1.connect(serverUrl, authToken);
+      await client2.connect(serverUrl, authToken);
 
       expect(socketManager.getUserSocketCount(testUser.id)).to.equal(2);
 
       client1.disconnect();
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 200)); // Allow server to process disconnect
 
       expect(socketManager.getUserSocketCount(testUser.id)).to.equal(1);
 
       client2.disconnect();
+      await new Promise((resolve) => setTimeout(resolve, 200)); // Allow server to process disconnect
+      expect(socketManager.getUserSocketCount(testUser.id)).to.equal(0);
     });
 
     it('should emit user status updates', async () => {
       const watcherClient = new TestSocketClient();
-      const watcherToken = (
-        await authService.register({
-          email: 'watcher@example.com',
-          username: 'watcher',
-          password: 'TestPassword123!'
-        })
-      ).accessToken;
+      const watcherUser = await authService.register({
+        email: 'watcher@example.com',
+        username: 'watcher',
+        password: 'TestPassword123!'
+      });
+      const watcherToken = watcherUser.accessToken;
 
-      await watcherClient.connect(watcherToken);
+      await watcherClient.connect(serverUrl, watcherToken);
 
-      // Subscribe to user status
       watcherClient.emit('user:status:subscribe', { userIds: [testUser.id] });
 
       const initialStatus = await watcherClient.waitForEvent('user:status:update');
       expect(initialStatus.statuses[testUser.id]).to.equal('offline');
 
-      // Connect target user
-      await socketClient.connect(authToken);
+      await socketClient.connect(serverUrl, authToken);
 
       const statusUpdate = await watcherClient.waitForEvent('user:status');
       expect(statusUpdate.userId).to.equal(testUser.id);
       expect(statusUpdate.status).to.equal('online');
+
+      socketClient.disconnect(); // Disconnect the target user
+      const offlineUpdate = await watcherClient.waitForEvent('user:status'); // Wait for the offline update
+      expect(offlineUpdate.userId).to.equal(testUser.id);
+      expect(offlineUpdate.status).to.equal('offline');
 
       watcherClient.disconnect();
     });

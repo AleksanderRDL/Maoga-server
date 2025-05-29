@@ -82,15 +82,20 @@ const mergedConfig = {
   logging: { ...baseConfig.logging, ...envConfig.logging },
   cors: { ...baseConfig.cors, ...envConfig.cors },
   rateLimit: { ...baseConfig.rateLimit, ...envConfig.rateLimit },
+  matchmaking: {
+    // matchmaking-specific config
+    processIntervalMs: env === 'test' ? 2000 : 5000 // 2s for test, 5s for others
+  },
   database: {
+    // Ensure database config is also well-merged
     uri:
       envConfig.database?.uri ||
       baseConfig.database?.uri ||
       process.env.MONGODB_URI ||
       (env === 'development'
         ? 'mongodb://localhost:27017/maoga_dev'
-        : 'mongodb://localhost:27017/maoga_prod_default'),
-    options: { ...baseConfig.database?.options, ...envConfig.database?.options }
+        : 'mongodb://localhost:27017/maoga_prod_default'), // Default for prod if not set
+    options: { ...baseConfig.database.options, ...envConfig.database?.options }
   }
 };
 
