@@ -4,6 +4,9 @@ const databaseManager = require('./config/database');
 const app = require('./app');
 const gameSyncJob = require('./jobs/gameSyncJob');
 const socketManager = require('./services/socketManager');
+const notificationQueue = require('./jobs/notificationQueue');
+const pushService = require('./modules/notification/services/pushService');
+const emailService = require('./modules/notification/services/emailService');
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -41,6 +44,16 @@ async function startServer() {
     const _io = socketManager.initialize(server);
     logger.info('Socket.IO initialized');
 
+    // Initialize notification services
+    pushService.initialize();
+    await emailService.initialize();
+
+    // Start notification queue processing
+    if (config.env !== 'test') {
+      notificationQueue.start();
+      logger.info('Notification queue started');
+    }
+
     // Start background jobs
     if (config.jobs.gameSyncEnabled && config.env !== 'test') {
       gameSyncJob.schedule();
@@ -61,7 +74,8 @@ function gracefulShutdown(signal) {
       // This callback is async
       logger.info('HTTP server closed');
       try {
-        await databaseManager.disconnect(); // Await here is correct
+        notificationQueue.stop();
+        await databaseManager.disconnect();
         logger.info('Database connections closed');
         logger.info('Graceful shutdown completed');
         process.exit(0);

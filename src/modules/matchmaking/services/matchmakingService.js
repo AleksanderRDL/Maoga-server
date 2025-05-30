@@ -9,6 +9,7 @@ const { NotFoundError, BadRequestError, ConflictError } = require('../../../util
 const logger = require('../../../utils/logger');
 const socketManager = require('../../../services/socketManager');
 const config = require('../../../config');
+const notificationService = require('../../notification/services/notificationService');
 
 class MatchmakingService {
   constructor() {
@@ -385,6 +386,20 @@ class MatchmakingService {
         lobbyId: lobby._id,
         participantCount: participants.length
       });
+
+      for (const participant of participants) {
+        await notificationService.createNotification(participant.userId.toString(), {
+          type: 'match_found',
+          title: 'Match Found!',
+          message: `You've been matched for ${matchHistory.gameMode} game`,
+          data: {
+            entityType: 'lobby',
+            entityId: lobby._id,
+            actionUrl: `/lobbies/${lobby._id}`
+          },
+          priority: 'high'
+        });
+      }
 
       return matchHistory;
     } catch (error) {

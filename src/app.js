@@ -16,6 +16,7 @@ const socialModule = require('./modules/social');
 const matchmakingModule = require('./modules/matchmaking');
 const lobbyModule = require('./modules/lobby');
 const chatModule = require('./modules/chat');
+const notificationModule = require('./modules/notification');
 
 // Create Express app
 const app = express();
@@ -77,6 +78,7 @@ app.use('/api/social', socialModule.routes);
 app.use('/api/matchmaking', matchmakingModule.routes);
 app.use('/api/lobbies', lobbyModule.routes);
 app.use('/api/chat', chatModule.routes);
+app.use('/api/notifications', notificationModule.routes);
 
 // Future module routes will be added here:
 // app.use('/api/notifications', notificationModule.routes);

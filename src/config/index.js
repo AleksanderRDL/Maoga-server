@@ -60,6 +60,40 @@ const baseConfig = {
     cors: {
       credentials: true
     }
+  },
+  // Notification configuration
+  notification: {
+    cleanupDaysToKeep: parseInt(process.env.NOTIFICATION_CLEANUP_DAYS, 10) || 30,
+    batchSize: {
+      push: parseInt(process.env.NOTIFICATION_PUSH_BATCH_SIZE, 10) || 10,
+      email: parseInt(process.env.NOTIFICATION_EMAIL_BATCH_SIZE, 10) || 5
+    }
+  },
+
+  // Firebase configuration
+  firebase: {
+    serviceAccount: process.env.FIREBASE_SERVICE_ACCOUNT
+      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+      : null,
+    projectId: process.env.FIREBASE_PROJECT_ID
+  },
+
+  // Email configuration
+  email: {
+    from: process.env.EMAIL_FROM || 'noreply@maoga.com',
+    smtp: {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT, 10) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  },
+
+  // App configuration
+  app: {
+    name: process.env.APP_NAME || 'Maoga',
+    url: process.env.APP_URL || 'http://localhost:3000'
   }
 };
 

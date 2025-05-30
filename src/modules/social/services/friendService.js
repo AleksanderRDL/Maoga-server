@@ -2,6 +2,7 @@ const Friendship = require('../models/Friendship');
 const User = require('../../auth/models/User');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
+const notificationService = require('../../notification/services/notificationService');
 
 class FriendService {
   /**
@@ -65,7 +66,16 @@ class FriendService {
         friendshipId: friendship._id
       });
 
-      // TODO: Trigger notification to target user
+      await notificationService.createNotification(targetUserId, {
+        type: 'friend_request',
+        title: 'New Friend Request',
+        message: `${requester.username} sent you a friend request`,
+        data: {
+          entityType: 'user',
+          entityId: requesterId,
+          actionUrl: '/friends/requests'
+        }
+      });
 
       return friendship;
     } catch (error) {

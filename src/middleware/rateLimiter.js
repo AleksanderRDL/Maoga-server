@@ -47,10 +47,17 @@ const relaxed = rateLimit({
   }
 });
 
+const notificationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
+  message: 'Too many notification requests'
+});
+
 module.exports = {
   rateLimiter: {
     standard,
     strict,
-    relaxed
+    relaxed,
+    notification: notificationLimiter
   }
 };
