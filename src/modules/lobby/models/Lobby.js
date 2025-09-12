@@ -146,7 +146,10 @@ lobbySchema.virtual('isReady').get(function () {
 
 // Instance methods
 lobbySchema.methods.addMember = function (userId, isHost = false) {
-  const existingMember = this.members.find((m) => m.userId.toString() === userId.toString());
+  const existingMember = this.members.find((m) => {
+    const memberId = m.userId && m.userId._id ? m.userId._id : m.userId;
+    return memberId.toString() === userId.toString();
+  });
 
   if (existingMember) {
     if (existingMember.status === 'left' || existingMember.status === 'kicked') {
@@ -170,7 +173,10 @@ lobbySchema.methods.addMember = function (userId, isHost = false) {
 };
 
 lobbySchema.methods.removeMember = function (userId, reason = 'left') {
-  const member = this.members.find((m) => m.userId.toString() === userId.toString());
+  const member = this.members.find((m) => {
+    const memberId = m.userId && m.userId._id ? m.userId._id : m.userId;
+    return memberId.toString() === userId.toString();
+  });
 
   if (member) {
     member.status = reason;
@@ -182,10 +188,12 @@ lobbySchema.methods.removeMember = function (userId, reason = 'left') {
 };
 
 lobbySchema.methods.setMemberReady = function (userId, readyStatus) {
-  const member = this.members.find(
-    (m) =>
-      m.userId.toString() === userId.toString() && (m.status === 'joined' || m.status === 'ready')
-  );
+  const member = this.members.find((m) => {
+    const memberId = m.userId && m.userId._id ? m.userId._id : m.userId;
+    return (
+      memberId.toString() === userId.toString() && (m.status === 'joined' || m.status === 'ready')
+    );
+  });
 
   if (member) {
     member.readyStatus = readyStatus;

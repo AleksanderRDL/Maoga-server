@@ -69,31 +69,42 @@ class NotificationService {
     // Map notification types to preference keys in user settings
     // Keys mirror the structure stored on the user document
     const preferenceMap = {
-      friend_request: 'friend_request',
-      friend_accepted: 'friend_request',
-      match_found: 'match_found',
-      lobby_invite: 'lobby_invite',
-      lobby_ready: 'lobby_invite',
-      message_received: 'message_received',
-      system_announcement: 'system',
-      achievement_earned: 'achievement_earned',
-      report_update: 'report_update'
+      friend_request: ['friend_request', 'friendRequests'],
+      friend_accepted: ['friend_request', 'friendRequests'],
+      match_found: ['match_found', 'matchFound'],
+      lobby_invite: ['lobby_invite', 'lobbyInvites'],
+      lobby_ready: ['lobby_invite', 'lobbyInvites'],
+      message_received: ['message_received', 'messages'],
+      system_announcement: ['system'],
+      achievement_earned: ['achievement_earned', 'system'],
+      report_update: ['report_update', 'system']
     };
 
-    const preferenceKey = preferenceMap[notificationType] || 'system';
+    const preferenceKeys = preferenceMap[notificationType] || ['system'];
 
-    // Always include in-app notifications
-    if (settings.inApp?.[preferenceKey] !== false) {
+    const getPreference = (channelSettings) => {
+      for (const key of preferenceKeys) {
+        if (channelSettings && Object.prototype.hasOwnProperty.call(channelSettings, key)) {
+          return channelSettings[key];
+        }
+      }
+      return undefined;
+    };
+
+    const inAppPref = getPreference(settings.inApp);
+    if (inAppPref !== false) {
       channels.push('inApp');
     }
 
     // Check push notification preference
-    if (settings.push?.[preferenceKey] === true && user.deviceTokens?.length > 0) {
+    const pushPref = getPreference(settings.push);
+    if (pushPref === true && user.deviceTokens?.length > 0) {
       channels.push('push');
     }
 
     // Check email preference
-    if (settings.email?.[preferenceKey] === true) {
+    const emailPref = getPreference(settings.email);
+    if (emailPref === true) {
       channels.push('email');
     }
 

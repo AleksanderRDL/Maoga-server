@@ -258,7 +258,6 @@ class LobbyService {
       }
 
       await lobby.populate('members.userId', 'username profile.displayName profile.profileImage');
-      this.emitLobbyUpdate(lobby);
       this.emitMemberReady(lobby, userId, readyStatus);
 
       logger.info('Member ready status updated', {
