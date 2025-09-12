@@ -252,8 +252,11 @@ class LobbyService {
 
       await lobby.save();
 
-      // Check if all members are ready
-      if (lobby.canTransitionToReady()) {
+      // If lobby was ready and a member unreadies, revert to forming
+      if (lobby.status === 'ready' && !lobby.isReady) {
+        await this.transitionLobbyState(lobby, 'forming');
+      } else if (lobby.canTransitionToReady()) {
+        // Check if all members are ready to transition to ready state
         await this.transitionLobbyState(lobby, 'ready');
       }
 
@@ -312,6 +315,11 @@ class LobbyService {
 
       case 'closed':
         lobby.closedAt = new Date();
+        break;
+
+      case 'forming':
+        // Reset ready timestamp when reverting from ready state
+        lobby.readyAt = undefined;
         break;
     }
 

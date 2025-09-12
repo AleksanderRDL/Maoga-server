@@ -18,6 +18,9 @@ class MatchmakingService {
     this.startProcessing();
 
     queueManager.on('requestAdded', ({ gameId, gameMode, region, requestId }) => {
+      // Only auto-process queues when the matchmaking service is actively running.
+      if (!this.isProcessing) {return;}
+
       logger.info('queueManager emitted requestAdded event', {
         gameId,
         gameMode,
@@ -387,19 +390,22 @@ class MatchmakingService {
         participantCount: participants.length
       });
 
-      for (const participant of participants) {
-        await notificationService.createNotification(participant.userId.toString(), {
-          type: 'match_found',
-          title: 'Match Found!',
-          message: `You've been matched for ${matchHistory.gameMode} game`,
-          data: {
-            entityType: 'lobby',
-            entityId: lobby._id,
-            actionUrl: `/lobbies/${lobby._id}`
-          },
-          priority: 'high'
-        });
-      }
+      // Notify each participant that a match has been found.
+      await Promise.all(
+        participants.map((participant) =>
+          notificationService.createNotification(participant.userId.toString(), {
+            type: 'match_found',
+            title: 'Match Found!',
+            message: `You've been matched for ${matchHistory.gameMode} game`,
+            data: {
+              entityType: 'lobby',
+              entityId: lobby._id,
+              actionUrl: `/lobbies/${lobby._id}`
+            },
+            priority: 'high'
+          })
+        )
+      );
 
       return matchHistory;
     } catch (error) {

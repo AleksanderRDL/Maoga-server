@@ -47,7 +47,17 @@ const markAsRead = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { notificationId } = req.params;
 
-  await notificationService.markAsRead(userId, [notificationId]);
+  const result = await notificationService.markAsRead(userId, [notificationId]);
+
+  if (result.modifiedCount === 0) {
+    // Differentiate between "not found" (silent success) and "belongs to another user"
+    const Notification = require('../models/Notification');
+    const existing = await Notification.findById(notificationId);
+    if (existing) {
+      // Notification exists but not owned by this user
+      throw new NotFoundError('Notification not found');
+    }
+  }
 
   res.status(200).json({
     status: 'success',

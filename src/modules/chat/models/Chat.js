@@ -76,11 +76,18 @@ chatSchema.index({ lastMessageAt: -1 });
 
 // Instance methods
 chatSchema.methods.addMessage = function (senderId, content, contentType = 'text') {
+  const now = new Date();
+  const lastMessage = this.messages[this.messages.length - 1];
+  const createdAt =
+    lastMessage && lastMessage.createdAt >= now
+      ? new Date(lastMessage.createdAt.getTime() + 1)
+      : now;
+
   const message = {
     senderId,
     content,
     contentType,
-    createdAt: new Date()
+    createdAt
   };
 
   this.messages.push(message);
