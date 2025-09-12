@@ -19,7 +19,9 @@ class MatchmakingService {
 
     queueManager.on('requestAdded', ({ gameId, gameMode, region, requestId }) => {
       // Only auto-process queues when the matchmaking service is actively running.
-      if (!this.isProcessing) {return;}
+      if (!this.isProcessing) {
+        return;
+      }
 
       logger.info('queueManager emitted requestAdded event', {
         gameId,

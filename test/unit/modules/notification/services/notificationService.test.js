@@ -226,8 +226,10 @@ describe('NotificationService Unit Tests', () => {
 
       expect(deleteManyStub.calledOnce).to.be.true;
       const queryArg = deleteManyStub.firstCall.args[0];
-      expect(queryArg.$or).to.deep.include({ status: 'archived' });
-      expect(queryArg.$or).to.deep.include({ createdAt: { $lt: cutoffDate }, status: 'read' });
+
+      expect(queryArg.$or).to.be.an('array').with.lengthOf(2);
+      expect(queryArg.$or[0]).to.deep.equal({ status: 'archived' });
+      expect(queryArg.$or[1]).to.deep.equal({ createdAt: { $lt: cutoffDate }, status: 'read' });
     });
   });
 });
