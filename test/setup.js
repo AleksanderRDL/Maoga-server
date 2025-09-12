@@ -18,7 +18,7 @@ before(async function () {
 
     try {
         mongoServer = await MongoMemoryServer.create({
-            binary: { version: process.env.MONGOMS_VERSION || '6.0.6' }
+            binary: { version: process.env.MONGOMS_VERSION || '8.0' }
         });
         process.env.MONGODB_URI = mongoServer.getUri();
 
