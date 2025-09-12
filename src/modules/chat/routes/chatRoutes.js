@@ -15,11 +15,13 @@ router.use(authenticate);
 router.post(
   '/lobby/:lobbyId/messages',
   rateLimiter.standard,
-  validateParams({
-    lobbyId: Joi.string()
-      .regex(/^[0-9a-fA-F]{24}$/)
-      .required()
-  }),
+  validateParams(
+    Joi.object({
+      lobbyId: Joi.string()
+        .regex(/^[0-9a-fA-F]{24}$/)
+        .required()
+    })
+  ),
   validateRequest(sendMessageSchema),
   chatController.sendLobbyMessage
 );
@@ -28,11 +30,14 @@ router.post(
 router.get(
   '/lobby/:lobbyId/messages',
   rateLimiter.relaxed,
-  validateParams({
-    lobbyId: Joi.string()
-      .regex(/^[0-9a-fA-F]{24}$/)
-      .required()
-  }),
+  validateParams(
+    Joi.object({
+      // Corrected: Wrapped in Joi.object()
+      lobbyId: Joi.string()
+        .regex(/^[0-9a-fA-F]{24}$/)
+        .required()
+    })
+  ),
   validateQuery(getChatHistoryQuerySchema),
   chatController.getLobbyChatHistory
 );
