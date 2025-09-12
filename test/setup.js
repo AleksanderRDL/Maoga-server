@@ -17,7 +17,9 @@ before(async function () {
     this.timeout(60000);
 
     try {
-        mongoServer = await MongoMemoryServer.create();
+        mongoServer = await MongoMemoryServer.create({
+            binary: { version: '7.0.5' }
+        });
         process.env.MONGODB_URI = mongoServer.getUri();
 
         await databaseManager.connect();
