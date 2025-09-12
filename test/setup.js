@@ -1,11 +1,8 @@
-const databaseManager = require('../src/config/database');
-const { logger } = require('../src/utils');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
 let mongoServer;
-
-// Suppress logs during tests
-logger.level = 'silent';
+let databaseManager;
+let logger;
 
 // Ensure we're using test environment
 process.env.NODE_ENV = 'test';
@@ -17,10 +14,19 @@ before(async function () {
     this.timeout(60000);
 
     try {
+        const mongoVersion = process.env.MONGOMS_VERSION || '7.0.14';
+        process.env.MONGOMS_VERSION = mongoVersion;
+        process.env.MONGOMS_DISTRO = process.env.MONGOMS_DISTRO || 'ubuntu2004';
         mongoServer = await MongoMemoryServer.create({
-            binary: { version: process.env.MONGOMS_VERSION || '8.2.0' }
+            binary: { version: mongoVersion }
         });
-        process.env.MONGODB_URI = mongoServer.getUri();
+        process.env.MONGODB_TEST_URI = mongoServer.getUri();
+
+        // Require the database manager after setting env vars so config picks up the correct URI.
+        databaseManager = require('../src/config/database');
+        ({ logger } = require('../src/utils'));
+        // Suppress logs during tests
+        logger.level = 'silent';
 
         await databaseManager.connect();
     } catch (err) {
@@ -35,7 +41,9 @@ after(async function () {
     this.timeout(60000);
 
     try {
-        await databaseManager.disconnect();
+        if (databaseManager) {
+            await databaseManager.disconnect();
+        }
     } catch (err) {
         // ignore errors during shutdown
     }

@@ -21,14 +21,15 @@ class DatabaseManager {
   }
 
   async _connect() {
-    try {
-      // Debug logging
+      const uri = process.env.MONGODB_TEST_URI || config.database.uri;
+      try {
+
       logger.info('Attempting MongoDB connection', {
-        uri: config.database.uri,
+        uri,
         options: config.database.options
       });
 
-      await mongoose.connect(config.database.uri, config.database.options);
+      await mongoose.connect(uri, config.database.options);
       this.isConnected = true;
 
       logger.info('MongoDB connected successfully', {
@@ -62,7 +63,7 @@ class DatabaseManager {
         errorStack: error.stack, // And potentially the stack
         errorCode: error.code, // And code if available
         errorName: error.name, // And name
-        uri: config.database.uri
+        uri
       });
       throw error;
     }

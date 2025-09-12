@@ -23,7 +23,7 @@ describe('PushService Unit Tests', () => {
 
     sandbox.stub(admin, 'initializeApp').returns({});
     sandbox.stub(admin, 'credential').value({ cert: sandbox.stub().returns({}) });
-    sandbox.stub(admin, 'messaging').returns(() => mockMessaging); // Return the stubbed messaging object
+    sandbox.stub(admin, 'messaging').returns(mockMessaging);
 
     pushService.initialize(); // Call initialize to set up the mocked messaging
     config.firebase.serviceAccount = originalServiceAccount; // Restore original config
