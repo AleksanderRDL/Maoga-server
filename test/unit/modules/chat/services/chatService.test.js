@@ -55,7 +55,7 @@ describe('ChatService', () => {
       );
 
       expect(result).to.equal(mockMessage);
-      expect(mockChat.addMessage.calledWith(userId, content, 'text')).to.be.true;
+      expect(mockChat.addMessage.calledWith(userId.toString(), content, 'text')).to.be.true;
       expect(mockChat.save.calledOnce).to.be.true;
       expect(socketManager.emitToRoom.calledOnce).to.be.true;
 

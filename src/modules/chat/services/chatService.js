@@ -15,19 +15,22 @@ class ChatService {
         throw new NotFoundError('Chat not found');
       }
 
+      const mongoose = require('mongoose');
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+
       // Verify user is a participant
-      const isParticipant = chat.participants.some((p) => p.toString() === userId);
+      const isParticipant = chat.participants.some((p) => p.equals(userObjectId));
       if (!isParticipant) {
         throw new BadRequestError('User is not a participant in this chat');
       }
 
       // Add message
-      const message = chat.addMessage(userId, content, contentType);
+      const message = chat.addMessage(userObjectId, content, contentType);
       await chat.save();
 
       // Get sender info
       const User = require('../../auth/models/User');
-      const sender = await User.findById(userId, 'username profile.displayName');
+      const sender = await User.findById(userObjectId, 'username profile.displayName');
 
       // Emit to lobby members
       socketManager.emitToRoom(`lobby:${lobbyId}`, 'chat:message', {

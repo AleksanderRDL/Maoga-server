@@ -3,7 +3,6 @@ const User = require('../../auth/models/User');
 const socketManager = require('../../../services/socketManager');
 const emailService = require('./emailService');
 const pushService = require('./pushService');
-const notificationQueue = require('../../../jobs/notificationQueue');
 const { NotFoundError, BadRequestError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 
@@ -118,6 +117,7 @@ class NotificationService {
    * Dispatch notification to delivery channels
    */
   async dispatchNotification(notification, user) {
+    const notificationQueue = require('../../../jobs/notificationQueue');
     const dispatchPromises = [];
 
     // In-app notification (via Socket.IO)
@@ -219,7 +219,8 @@ class NotificationService {
       );
 
       if (!notification) {
-        throw new NotFoundError('Notification not found');
+        logger.error('Notification not found', { notificationId });
+        return;
       }
 
       const user = notification.userId;
@@ -267,7 +268,9 @@ class NotificationService {
           error: error.message
         }
       });
-
+      if (error instanceof NotFoundError) {
+        return;
+      }
       throw error;
     }
   }
@@ -283,7 +286,8 @@ class NotificationService {
       );
 
       if (!notification) {
-        throw new NotFoundError('Notification not found');
+        logger.error('Notification not found', { notificationId });
+        return;
       }
 
       const user = notification.userId;
@@ -328,7 +332,9 @@ class NotificationService {
           error: error.message
         }
       });
-
+      if (error instanceof NotFoundError) {
+        return;
+      }
       throw error;
     }
   }

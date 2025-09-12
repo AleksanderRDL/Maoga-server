@@ -84,11 +84,11 @@ describe('Chat Model', () => {
       const lobbyId = new mongoose.Types.ObjectId();
       const participants = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
 
-      const saveSpy = sandbox.spy(Chat.prototype, 'save');
-      sandbox.stub(Chat.prototype, 'save').resolves();
+      const saveStub = sandbox.stub(Chat.prototype, 'save').resolves();
 
       const chat = await Chat.createLobbyChat(lobbyId, participants);
 
+      expect(saveStub.calledOnce).to.be.true;
       expect(chat).to.be.instanceOf(Chat);
       expect(chat.chatType).to.equal('lobby');
       expect(chat.lobbyId.toString()).to.equal(lobbyId.toString());

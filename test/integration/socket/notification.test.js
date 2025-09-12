@@ -3,6 +3,8 @@ const sinon = require('sinon');
 const http = require('http');
 const { Server } = require('socket.io');
 const socketIOClient = require('socket.io-client');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('../../../src/app'); // Your Express app
 const socketManager = require('../../../src/services/socketManager');
 const authService = require('../../../src/modules/auth/services/authService');
@@ -18,8 +20,17 @@ describe('Notification Socket.IO Integration Tests', () => {
   let clientUser1;
   let user1, userToken1;
   let sandbox;
+  let mongoServer;
 
   before(async () => {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+    mongoServer = await MongoMemoryServer.create();
+    await mongoose.connect(mongoServer.getUri(), {
+      dbName: 'test'
+    });
+
     httpServer = http.createServer(app);
     await new Promise((resolve) => {
       httpServer.listen(0, 'localhost', () => {
@@ -37,6 +48,10 @@ describe('Notification Socket.IO Integration Tests', () => {
     }
     if (httpServer && httpServer.listening) {
       await new Promise((resolve) => httpServer.close(resolve));
+    }
+    await mongoose.disconnect();
+    if (mongoServer) {
+      await mongoServer.stop();
     }
   });
 

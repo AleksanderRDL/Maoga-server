@@ -6,25 +6,23 @@ const logger = require('../../../src/utils/logger');
 
 describe('NotificationQueue Unit Tests', () => {
   let sandbox;
-  let clock;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    clock = sinon.useFakeTimers();
     // Suppress logger output during tests
     sandbox.stub(logger, 'debug');
     sandbox.stub(logger, 'info');
     sandbox.stub(logger, 'warn');
     sandbox.stub(logger, 'error');
-  });
 
-  afterEach(() => {
-    sandbox.restore();
-    clock.restore();
     notificationQueue.queues.push = [];
     notificationQueue.queues.email = [];
     notificationQueue.processing.push = false;
     notificationQueue.processing.email = false;
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   describe('addJob', () => {
@@ -72,9 +70,9 @@ describe('NotificationQueue Unit Tests', () => {
 
     it('should retry failed push jobs up to 3 times', async () => {
       processPushStub.onFirstCall().rejects(new Error('Failed 1'));
-      processPushStub.onSecondCall().rejects(new Error('Failed 2'));
-      processPushStub.onThirdCall().rejects(new Error('Failed 3'));
-      processPushStub.onCall(3).resolves(); // Fourth attempt succeeds for a different job
+      processPushStub.onSecondCall().resolves();
+      processPushStub.onThirdCall().rejects(new Error('Failed 2'));
+      processPushStub.onCall(3).rejects(new Error('Failed 3'));
 
       await notificationQueue.addJob('push', { notificationId: 'pFail' });
       await notificationQueue.addJob('push', { notificationId: 'pSuccessAfterFail' });
@@ -136,6 +134,7 @@ describe('NotificationQueue Unit Tests', () => {
 
       // Initial processing attempt
       await notificationQueue.processEmailQueue(); // eFail (fails), eSuccessStraight (fails because stub is onSecondCall)
+      await new Promise((resolve) => setImmediate(resolve));
       expect(processEmailStub.callCount).to.equal(2);
       expect(notificationQueue.queues.email).to.have.lengthOf(2); // Both re-queued due to stub setup for failure
       expect(notificationQueue.queues.email[0].attempts).to.equal(1); // eFail
