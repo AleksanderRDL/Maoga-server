@@ -99,11 +99,15 @@ class NotificationService {
 
     // Force all channels for urgent notifications
     if (priority === 'urgent') {
-      if (!channels.includes('inApp')) {channels.push('inApp');}
+      if (!channels.includes('inApp')) {
+        channels.push('inApp');
+      }
       if (!channels.includes('push') && user.deviceTokens?.length > 0) {
         channels.push('push');
       }
-      if (!channels.includes('email')) {channels.push('email');}
+      if (!channels.includes('email')) {
+        channels.push('email');
+      }
     }
 
     return channels;

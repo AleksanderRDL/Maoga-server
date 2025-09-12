@@ -56,7 +56,7 @@ class NotificationQueue {
       throw new Error(`Invalid queue type: ${type}`);
     }
 
-    this.queues[type].push({
+    await this.queues[type].push({
       id: `${type}_${Date.now()}_${Math.random()}`,
       data,
       createdAt: new Date(),
