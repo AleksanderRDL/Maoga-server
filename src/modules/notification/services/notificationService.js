@@ -249,11 +249,18 @@ class NotificationService {
 
       await notification.save();
 
-      logger.info('Push notification processed', {
-        notificationId,
-        success: result.success,
-        tokensCount: user.deviceTokens.length
-      });
+      if (!result.success) {
+        logger.error('Failed to send push notification', {
+          notificationId,
+          error: result.error
+        });
+      } else {
+        logger.info('Push notification processed', {
+          notificationId,
+          success: result.success,
+          tokensCount: user.deviceTokens.length
+        });
+      }
 
       return result;
     } catch (error) {
@@ -313,11 +320,19 @@ class NotificationService {
 
       await notification.save();
 
-      logger.info('Email notification processed', {
-        notificationId,
-        success: result.success,
-        email: user.email
-      });
+      if (!result.success) {
+        logger.error('Failed to send email notification', {
+          notificationId,
+          error: result.error,
+          email: user.email
+        });
+      } else {
+        logger.info('Email notification processed', {
+          notificationId,
+          success: result.success,
+          email: user.email
+        });
+      }
 
       return result;
     } catch (error) {

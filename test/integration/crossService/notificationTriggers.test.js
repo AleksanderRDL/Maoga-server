@@ -11,7 +11,10 @@ const Game = require('../../../src/modules/game/models/Game');
 const Friendship = require('../../../src/modules/social/models/Friendship');
 
 const authService = require('../../../src/modules/auth/services/authService');
-const matchmakingService = require('../../../src/modules/matchmaking/services/matchmakingService');
+const {
+  matchmakingService,
+  matchAlgorithmService
+} = require('../../../src/modules/matchmaking/services');
 const lobbyService = require('../../../src/modules/lobby/services/lobbyService');
 const friendService = require('../../../src/modules/social/services/friendService');
 const notificationService = require('../../../src/modules/notification/services/notificationService'); // To spy on
@@ -71,11 +74,8 @@ describe('Cross-Service Notification Trigger Integration Tests', () => {
 
     // 2. Manually trigger match formation (assuming matchmakingService.processSpecificQueue exists)
     // This might need adjustment based on how your matchmakingService is structured for testing
-    const enrichedRequests = await matchmakingService.matchAlgorithmService.enrichRequests([
-      request1,
-      request2
-    ]);
-    const matches = await matchmakingService.matchAlgorithmService.findMatches(
+    const enrichedRequests = await matchAlgorithmService.enrichRequests([request1, request2]);
+    const matches = await matchAlgorithmService.findMatches(
       enrichedRequests,
       game1._id.toString(),
       'competitive',
@@ -169,6 +169,7 @@ describe('Cross-Service Notification Trigger Integration Tests', () => {
     const lobby = await Lobby.create({
       name: 'Test Invite Lobby',
       gameId: game1._id,
+      gameMode: 'casual',
       hostId: user1._id,
       members: [{ userId: user1._id, status: 'joined', isHost: true }]
     });

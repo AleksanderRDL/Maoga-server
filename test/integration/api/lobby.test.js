@@ -82,7 +82,7 @@ describe('Lobby Integration Tests', () => {
 
       expect(lobby).to.exist;
       expect(lobby.name).to.include('Match');
-      expect(lobby.gameId.toString()).to.equal(testGame._id.toString());
+      expect(lobby.gameId._id.toString()).to.equal(testGame._id.toString());
       expect(lobby.gameMode).to.equal('competitive');
       expect(lobby.hostId.toString()).to.equal(user1.id);
       expect(lobby.members).to.have.lengthOf(2);
@@ -192,6 +192,7 @@ describe('Lobby Integration Tests', () => {
           name: 'Another Lobby',
           gameId: testGame._id,
           hostId: user2.id,
+          gameMode: 'casual',
           status: 'forming',
           members: [
             {
@@ -333,6 +334,7 @@ describe('Lobby Integration Tests', () => {
       testLobby = await Lobby.create({
         name: 'Test Lobby',
         gameId: testGame._id,
+        gameMode: 'casual',
         hostId: user1.id,
         members: [
           { userId: user1.id, status: 'joined', isHost: true },

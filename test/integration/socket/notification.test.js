@@ -75,9 +75,10 @@ describe('Notification Socket.IO Integration Tests', () => {
     userToken1 = user1Data.accessToken;
 
     clientUser1 = new TestSocketClient(serverUrl, userToken1);
+    const connectedPromise = clientUser1.waitForEvent('connected', 5000);
     await clientUser1.connect();
     // Wait for the 'connected' event which confirms socket.userId is set
-    await clientUser1.waitForEvent('connected', 5000);
+    await connectedPromise;
   });
 
   afterEach(async () => {
@@ -142,8 +143,9 @@ describe('Notification Socket.IO Integration Tests', () => {
 
   it('should not receive "notification:new" if inApp is disabled for that type', async () => {
     // Update user1's settings to disable inApp for 'friend_request'
-    user1.notificationSettings.inApp.friend_request = false;
-    await user1.save();
+    await User.findByIdAndUpdate(user1._id, {
+      $set: { 'notificationSettings.inApp.friendRequests': false }
+    });
 
     let received = false;
     clientUser1.on('notification:new', () => {

@@ -73,6 +73,7 @@ describe('Socket.IO Lobby Events', () => {
     testLobby = await Lobby.create({
       name: 'Test Lobby',
       gameId: testGame._id,
+      gameMode: 'casual',
       hostId: user1.id,
       members: [
         { userId: user1.id, status: 'joined', isHost: true },

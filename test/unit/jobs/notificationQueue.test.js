@@ -125,33 +125,31 @@ describe('NotificationQueue Unit Tests', () => {
     });
 
     it('should retry failed email jobs with exponential backoff', async () => {
+      const clock = sandbox.useFakeTimers();
       processEmailStub.onFirstCall().rejects(new Error('Email Failed 1'));
-      processEmailStub.onSecondCall().rejects(new Error('Email Failed 2')); // Should be for the next job
-      processEmailStub.onThirdCall().resolves(); // Retry of the first job
+      processEmailStub.onSecondCall().rejects(new Error('Email Failed 2'));
+      processEmailStub.onThirdCall().resolves();
 
       await notificationQueue.addJob('email', { notificationId: 'eFail' });
       await notificationQueue.addJob('email', { notificationId: 'eSuccessStraight' });
 
       // Initial processing attempt
-      await notificationQueue.processEmailQueue(); // eFail (fails), eSuccessStraight (fails because stub is onSecondCall)
-      await new Promise((resolve) => setImmediate(resolve));
+      await notificationQueue.processEmailQueue();
+      await clock.tickAsync(2000);
       expect(processEmailStub.callCount).to.equal(2);
-      expect(notificationQueue.queues.email).to.have.lengthOf(2); // Both re-queued due to stub setup for failure
-      expect(notificationQueue.queues.email[0].attempts).to.equal(1); // eFail
-      expect(notificationQueue.queues.email[1].attempts).to.equal(1); // eSuccessStraight
+      expect(notificationQueue.queues.email).to.have.lengthOf(2);
+      expect(notificationQueue.queues.email[0].attempts).to.equal(1);
+      expect(notificationQueue.queues.email[1].attempts).to.equal(1);
 
-      // Simulate time passing for backoff (e.g., 2 seconds for the first job's retry)
-      // The test queue won't respect the setTimeout, it's just to illustrate backoff logic exists.
-      // In a real scenario, the interval timer would re-trigger processing.
-      // Here, we'll manually call processEmailQueue again.
-
-      processEmailStub.resetHistory(); // Reset stub history for clarity on next call
-      processEmailStub.onFirstCall().resolves(); // Now eFail (attempt 2) should succeed
-      processEmailStub.onSecondCall().resolves(); // eSuccessStraight (attempt 2) should succeed
+      processEmailStub.resetHistory();
+      processEmailStub.onFirstCall().resolves();
+      processEmailStub.onSecondCall().resolves();
 
       await notificationQueue.processEmailQueue();
-      expect(processEmailStub.callCount).to.equal(2); // Both jobs processed again
+      expect(processEmailStub.callCount).to.equal(2);
       expect(notificationQueue.queues.email).to.be.empty;
+
+      clock.restore();
     });
   });
 
