@@ -16,7 +16,8 @@ class ChatService {
       }
 
       // Verify user is a participant
-      if (!chat.participants.includes(userId)) {
+      const isParticipant = chat.participants.some((p) => p.toString() === userId);
+      if (!isParticipant) {
         throw new BadRequestError('User is not a participant in this chat');
       }
 
@@ -26,7 +27,7 @@ class ChatService {
 
       // Get sender info
       const User = require('../../auth/models/User');
-      const sender = await User.findById(userId).select('username profile.displayName');
+      const sender = await User.findById(userId, 'username profile.displayName');
 
       // Emit to lobby members
       socketManager.emitToRoom(`lobby:${lobbyId}`, 'chat:message', {
@@ -76,7 +77,8 @@ class ChatService {
       }
 
       // Verify user is a participant
-      if (!chat.participants.includes(userId)) {
+      const isParticipant = chat.participants.some((p) => p.toString() === userId);
+      if (!isParticipant) {
         throw new BadRequestError('User is not authorized to view this chat');
       }
 

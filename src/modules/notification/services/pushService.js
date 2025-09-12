@@ -19,12 +19,12 @@ class PushService {
     try {
       // Initialize Firebase Admin with service account
       if (config.firebase.serviceAccount) {
-        admin.initializeApp({
+        const app = admin.initializeApp({
           credential: admin.credential.cert(config.firebase.serviceAccount),
           projectId: config.firebase.projectId
         });
 
-        this.messaging = admin.messaging();
+        this.messaging = app?.messaging ? app.messaging() : null;
         this.initialized = true;
 
         logger.info('Firebase Admin SDK initialized');

@@ -67,17 +67,18 @@ class NotificationService {
     const channels = [];
     const settings = user.notificationSettings || {};
 
-    // Map notification types to preference keys
+    // Map notification types to preference keys in user settings
+    // Keys mirror the structure stored on the user document
     const preferenceMap = {
-      friend_request: 'friendRequests',
-      friend_accepted: 'friendRequests',
-      match_found: 'matchFound',
-      lobby_invite: 'lobbyInvites',
-      lobby_ready: 'lobbyInvites',
-      message_received: 'messages',
+      friend_request: 'friend_request',
+      friend_accepted: 'friend_request',
+      match_found: 'match_found',
+      lobby_invite: 'lobby_invite',
+      lobby_ready: 'lobby_invite',
+      message_received: 'message_received',
       system_announcement: 'system',
-      achievement_earned: 'achievements',
-      report_update: 'reports'
+      achievement_earned: 'achievement_earned',
+      report_update: 'report_update'
     };
 
     const preferenceKey = preferenceMap[notificationType] || 'system';

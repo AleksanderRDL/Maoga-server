@@ -21,9 +21,10 @@ describe('PushService Unit Tests', () => {
     const originalServiceAccount = config.firebase.serviceAccount;
     config.firebase.serviceAccount = { projectId: 'test-project' }; // Minimal valid structure
 
-    sandbox.stub(admin, 'initializeApp').returns({});
+    // Return a fake Firebase app with a messaging method so that the service
+    // does not rely on a globally registered default app during tests
+    sandbox.stub(admin, 'initializeApp').returns({ messaging: () => mockMessaging });
     sandbox.stub(admin, 'credential').value({ cert: sandbox.stub().returns({}) });
-    sandbox.stub(admin, 'messaging').returns(mockMessaging);
 
     pushService.initialize(); // Call initialize to set up the mocked messaging
     config.firebase.serviceAccount = originalServiceAccount; // Restore original config

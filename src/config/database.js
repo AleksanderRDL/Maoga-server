@@ -21,9 +21,8 @@ class DatabaseManager {
   }
 
   async _connect() {
-      const uri = process.env.MONGODB_TEST_URI || config.database.uri;
-      try {
-
+    const uri = process.env.MONGODB_TEST_URI || config.database.uri;
+    try {
       logger.info('Attempting MongoDB connection', {
         uri,
         options: config.database.options

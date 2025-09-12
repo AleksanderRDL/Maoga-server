@@ -79,11 +79,8 @@ describe('LobbyService - State Machine Logic', () => {
 
       await lobbyService.transitionLobbyState(mockLobby, 'ready');
 
-      // Fast-forward 5 seconds
-      clock.tick(5000);
-
-      // Wait for async operations
-      await new Promise((resolve) => setImmediate(resolve));
+      // Fast-forward 5 seconds and allow queued callbacks to run
+      await clock.tickAsync(5000);
 
       expect(transitionSpy.callCount).to.be.greaterThan(1);
 

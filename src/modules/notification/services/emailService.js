@@ -189,23 +189,20 @@ class EmailService {
       const batch = recipients.slice(i, i + batchSize);
 
       const promises = batch.map(async (recipient) => {
-        try {
-          await this.sendNotificationEmail({
-            to: recipient.email,
-            subject,
-            data: {
-              ...commonData,
-              ...recipient.data,
-              type: templateName
-            }
-          });
+        const res = await this.sendNotificationEmail({
+          to: recipient.email,
+          subject,
+          data: {
+            ...commonData,
+            ...recipient.data,
+            type: templateName
+          }
+        });
+        if (res.success) {
           results.sent++;
-        } catch (error) {
+        } else {
           results.failed++;
-          results.errors.push({
-            email: recipient.email,
-            error: error.message
-          });
+          results.errors.push({ email: recipient.email, error: res.error });
         }
       });
 

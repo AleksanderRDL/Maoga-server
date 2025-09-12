@@ -145,15 +145,15 @@ describe('ChatService', () => {
       const messages = [
         {
           _id: new mongoose.Types.ObjectId(),
-          createdAt: new Date(cutoffTime - 7200000) // 2 hours before
+          createdAt: new Date(cutoffTime.getTime() - 7200000) // 2 hours before
         },
         {
           _id: new mongoose.Types.ObjectId(),
-          createdAt: new Date(cutoffTime - 3600000) // 1 hour before
+          createdAt: new Date(cutoffTime.getTime() - 3600000) // 1 hour before
         },
         {
           _id: new mongoose.Types.ObjectId(),
-          createdAt: new Date(cutoffTime + 3600000) // 1 hour after
+          createdAt: new Date(cutoffTime.getTime() + 3600000) // 1 hour after
         }
       ];
 
