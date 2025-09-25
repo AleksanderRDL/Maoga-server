@@ -105,20 +105,12 @@ describe('UserService', () => {
     it('should update allowed profile fields', async () => {
       const mockUser = {
         _id: 'userId123',
-        status: 'active'
+        status: 'active',
+        profile: {},
+        save: sandbox.stub().resolves()
       };
 
       sandbox.stub(userService, 'getUserById').resolves(mockUser);
-
-      const updatedUser = {
-        ...mockUser,
-        profile: {
-          displayName: 'New Name',
-          bio: 'New Bio'
-        }
-      };
-
-      sandbox.stub(User, 'findByIdAndUpdate').resolves(updatedUser);
 
       const result = await userService.updateProfile('userId123', {
         displayName: 'New Name',
@@ -126,32 +118,29 @@ describe('UserService', () => {
         email: 'should-be-ignored@example.com'
       });
 
-      expect(result).to.equal(updatedUser);
-      expect(User.findByIdAndUpdate.calledOnce).to.be.true;
-
-      const updateCall = User.findByIdAndUpdate.getCall(0);
-      expect(updateCall.args[1].$set).to.deep.equal({
-        'profile.displayName': 'New Name',
-        'profile.bio': 'New Bio'
-      });
+      expect(result).to.equal(mockUser);
+      expect(mockUser.profile.displayName).to.equal('New Name');
+      expect(mockUser.profile.bio).to.equal('New Bio');
+      expect(mockUser.save.calledOnce).to.be.true;
     });
 
     it('should return the user unmodified if updateData is empty', async () => {
       const mockUserInstance = {
         _id: 'userId123',
         status: 'active',
+        profile: {},
+        save: sandbox.stub(),
         // Ensure toObject is present if the service code calls it on the result of getUserById
         toObject: function () {
           return this;
         }
       };
       sandbox.stub(userService, 'getUserById').resolves(mockUserInstance);
-      const findByIdAndUpdateSpy = sandbox.spy(User, 'findByIdAndUpdate');
 
       const result = await userService.updateProfile('userId123', {});
 
       expect(result).to.deep.equal(mockUserInstance);
-      expect(findByIdAndUpdateSpy.called).to.be.false;
+      expect(mockUserInstance.save.called).to.be.false;
       // Use the stubbed logger.info
       expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be
         .true;
@@ -162,12 +151,13 @@ describe('UserService', () => {
         _id: 'userId123',
         status: 'active',
         email: 'original@example.com',
+        profile: {},
+        save: sandbox.stub(),
         toObject: function () {
           return this;
         }
       };
       sandbox.stub(userService, 'getUserById').resolves(mockUserInstance);
-      const findByIdAndUpdateSpy = sandbox.spy(User, 'findByIdAndUpdate');
 
       const result = await userService.updateProfile('userId123', {
         email: 'new@example.com',
@@ -175,7 +165,7 @@ describe('UserService', () => {
       });
 
       expect(result).to.deep.equal(mockUserInstance);
-      expect(findByIdAndUpdateSpy.called).to.be.false;
+      expect(mockUserInstance.save.called).to.be.false;
       // Use the stubbed logger.info
       expect(loggerInfoStub.calledWithMatch('No valid fields to update for user profile')).to.be
         .true;

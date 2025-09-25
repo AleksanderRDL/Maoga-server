@@ -13,6 +13,7 @@ describe('Notification Error Handling Integration Tests', () => {
   let sandbox;
   let user;
   let notification;
+  let queueLogger;
 
   beforeEach(async () => {
     sandbox = sinon.createSandbox();
@@ -43,6 +44,12 @@ describe('Notification Error Handling Integration Tests', () => {
     sandbox.stub(logger, 'warn');
     sandbox.stub(logger, 'info');
     sandbox.stub(logger, 'debug');
+
+    queueLogger = logger.forModule('jobs:notificationQueue');
+    sandbox.stub(queueLogger, 'error');
+    sandbox.stub(queueLogger, 'warn');
+    sandbox.stub(queueLogger, 'info');
+    sandbox.stub(queueLogger, 'debug');
   });
 
   afterEach(() => {
@@ -92,40 +99,42 @@ describe('Notification Error Handling Integration Tests', () => {
   it('should retry and eventually fail a job in notificationQueue if processing fails repeatedly', async function () {
     this.timeout(10000); // Increase timeout for retry logic with delays
 
-    const clock = sinon.useFakeTimers();
-    const processPushStub = sandbox.stub(notificationService, 'processPushNotification');
-    processPushStub.onFirstCall().rejects(new Error('Push attempt 1 failed'));
-    processPushStub.onSecondCall().rejects(new Error('Push attempt 2 failed'));
-    processPushStub.onThirdCall().rejects(new Error('Push attempt 3 failed')); // Max attempts
+    const clock = sandbox.useFakeTimers();
+    try {
+      const processPushStub = sandbox.stub(notificationService, 'processPushNotification');
+      processPushStub.onFirstCall().rejects(new Error('Push attempt 1 failed'));
+      processPushStub.onSecondCall().rejects(new Error('Push attempt 2 failed'));
+      processPushStub.onThirdCall().rejects(new Error('Push attempt 3 failed')); // Max attempts
 
-    const jobData = { notificationId: notification._id.toString(), userId: user._id.toString() };
-    await notificationQueue.addJob('push', jobData);
-    expect(notificationQueue.queues.push.length).to.equal(1);
+      const jobData = { notificationId: notification._id.toString(), userId: user._id.toString() };
+      await notificationQueue.addJob('push', jobData);
+      expect(notificationQueue.queues.push.length).to.equal(1);
 
-    // Attempt 1
-    await notificationQueue.processPushQueue();
-    expect(processPushStub.callCount).to.equal(1);
-    expect(notificationQueue.queues.push.length).to.equal(1); // Re-queued
-    expect(notificationQueue.queues.push[0].attempts).to.equal(1);
+      // Attempt 1
+      await notificationQueue.processPushQueue();
+      expect(processPushStub.callCount).to.equal(1);
+      expect(notificationQueue.queues.push.length).to.equal(1); // Re-queued
+      expect(notificationQueue.queues.push[0].attempts).to.equal(1);
 
-    // Attempt 2
-    await notificationQueue.processPushQueue();
-    expect(processPushStub.callCount).to.equal(2);
-    expect(notificationQueue.queues.push.length).to.equal(1); // Re-queued
-    expect(notificationQueue.queues.push[0].attempts).to.equal(2);
+      // Attempt 2
+      await notificationQueue.processPushQueue();
+      expect(processPushStub.callCount).to.equal(2);
+      expect(notificationQueue.queues.push.length).to.equal(1); // Re-queued
+      expect(notificationQueue.queues.push[0].attempts).to.equal(2);
 
-    // Attempt 3
-    await notificationQueue.processPushQueue();
-    expect(processPushStub.callCount).to.equal(3);
-    expect(notificationQueue.queues.push.length).to.equal(0); // Not re-queued after 3 attempts
-    expect(
-      logger.error.calledWith(
-        sinon.match('Push notification job failed after max attempts'),
-        sinon.match.any
-      )
-    ).to.be.true;
-
-    clock.restore();
+      // Attempt 3
+      await notificationQueue.processPushQueue();
+      expect(processPushStub.callCount).to.equal(3);
+      expect(notificationQueue.queues.push.length).to.equal(0); // Not re-queued after 3 attempts
+      expect(
+        queueLogger.error.calledWith(
+          sinon.match('Push notification job failed after max attempts'),
+          sinon.match.any
+        )
+      ).to.be.true;
+    } finally {
+      clock.restore();
+    }
   });
 
   it('should handle Notification not found in processPushNotification gracefully', async () => {
