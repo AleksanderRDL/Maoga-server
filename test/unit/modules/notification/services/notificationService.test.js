@@ -219,6 +219,8 @@ describe('NotificationService Unit Tests', () => {
     it('should delete archived or old read notifications', async () => {
       const deleteManyStub = sandbox.stub(Notification, 'deleteMany').resolves({ deletedCount: 5 });
       const daysToKeep = 30;
+      const fakeNow = new Date('2024-01-01T00:00:00.000Z');
+      sandbox.useFakeTimers(fakeNow.getTime());
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
@@ -233,3 +235,4 @@ describe('NotificationService Unit Tests', () => {
     });
   });
 });
+
