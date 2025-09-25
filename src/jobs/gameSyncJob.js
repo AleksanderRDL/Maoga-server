@@ -1,5 +1,5 @@
 const gameService = require('../modules/game/services/gameService');
-const logger = require('../utils/logger');
+const logger = require('../utils/logger').forModule('jobs:gameSync');
 const config = require('../config');
 
 class GameSyncJob {
@@ -87,3 +87,4 @@ class GameSyncJob {
 }
 
 module.exports = new GameSyncJob();
+

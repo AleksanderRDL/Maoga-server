@@ -1,10 +1,27 @@
 const mongoose = require('mongoose');
 const config = require('./index');
-const logger = require('../utils/logger');
+const baseLogger = require('../utils/logger');
 
-if (config.env === 'development') {
-  mongoose.set('debug', true);
+const logger = baseLogger.forModule('database:connection');
+const mongooseLogger = baseLogger.forModule('database:mongoose');
+
+function configureDebugLogging() {
+  if (config.database?.debug) {
+    mongoose.set('debug', (collection, method, query, doc, options = {}) => {
+      mongooseLogger.debug('Mongoose operation', {
+        collection,
+        method,
+        query,
+        doc,
+        options
+      });
+    });
+  } else {
+    mongoose.set('debug', false);
+  }
 }
+
+configureDebugLogging();
 
 class DatabaseManager {
   constructor() {
@@ -37,31 +54,28 @@ class DatabaseManager {
         database: mongoose.connection.name
       });
 
-      // Connection event handlers
       mongoose.connection.on('error', (error) => {
-        logger.error('MongoDB connection error', { error: error.message });
+        mongooseLogger.error('MongoDB connection error', { error: error.message });
       });
 
       mongoose.connection.on('disconnected', () => {
         this.isConnected = false;
-        logger.warn('MongoDB disconnected');
+        mongooseLogger.warn('MongoDB disconnected');
       });
 
       mongoose.connection.on('reconnected', () => {
         this.isConnected = true;
-        logger.info('MongoDB reconnected');
+        mongooseLogger.info('MongoDB reconnected');
       });
 
       return mongoose.connection;
     } catch (error) {
       this.isConnected = false;
-      // Log the full error object to see all its properties
-      console.error('Full Mongoose Connection Error Object:', error); // Add this line
-      logger.error('Failed to connect to MongoDB', {
-        errorMessage: error.message, // Ensure you are logging error.message
-        errorStack: error.stack, // And potentially the stack
-        errorCode: error.code, // And code if available
-        errorName: error.name, // And name
+      mongooseLogger.error('Failed to connect to MongoDB', {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        errorCode: error.code,
+        errorName: error.name,
         uri
       });
       throw error;

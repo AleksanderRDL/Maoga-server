@@ -5,7 +5,34 @@ const fs = require('fs');
 
 const env = process.env.NODE_ENV || 'development';
 
-// Base configuration
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  const normalized = String(value).toLowerCase().trim();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
+
+function parseModuleLogLevels(rawValue) {
+  if (!rawValue) {
+    return {};
+  }
+
+  const entries = rawValue
+    .split(',')
+    .map((pair) => pair.split('=').map((part) => part && part.trim()))
+    .filter(([name, level]) => Boolean(name) && Boolean(level));
+
+  return Object.fromEntries(entries);
+}
+
 const baseConfig = {
   env: env,
   port: parseInt(process.env.PORT, 10) || 3000,
@@ -19,7 +46,10 @@ const baseConfig = {
     audience: 'maoga-app'
   },
   logging: {
-    level: process.env.LOG_LEVEL || (env === 'development' ? 'debug' : 'info')
+    level: process.env.LOG_LEVEL || (env === 'development' ? 'info' : 'warn'),
+    pretty: parseBoolean(process.env.LOG_PRETTY, env === 'development'),
+    showConfig: parseBoolean(process.env.LOG_CONFIG_DEBUG, false),
+    modules: parseModuleLogLevels(process.env.LOG_MODULE_LEVELS)
   },
   cors: {
     allowedOrigins: process.env.CORS_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()) || [
@@ -35,6 +65,7 @@ const baseConfig = {
         : parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100
   },
   database: {
+    debug: parseBoolean(process.env.MONGOOSE_DEBUG, env === 'development'),
     // Default options that can be overridden by environment-specific files
     options: {
       serverSelectionTimeoutMS: 5000,
@@ -106,14 +137,22 @@ if (fs.existsSync(envConfigFile)) {
   envConfig = require(envConfigFile);
 }
 
+const mergedLogging = {
+  ...baseConfig.logging,
+  ...envConfig.logging,
+  modules: {
+    ...(baseConfig.logging?.modules || {}),
+    ...(envConfig.logging?.modules || {})
+  }
+};
+
 // Deep merge baseConfig and envConfig, envConfig takes precedence
 // A simple merge strategy; for deeper nested objects, consider lodash.merge
 const mergedConfig = {
   ...baseConfig,
   ...envConfig,
-  // Ensure nested objects like jwt, logging, cors, rateLimit, database.options are merged
   jwt: { ...baseConfig.jwt, ...envConfig.jwt },
-  logging: { ...baseConfig.logging, ...envConfig.logging },
+  logging: mergedLogging,
   cors: { ...baseConfig.cors, ...envConfig.cors },
   rateLimit: { ...baseConfig.rateLimit, ...envConfig.rateLimit },
   matchmaking: {
@@ -129,7 +168,8 @@ const mergedConfig = {
       (env === 'development'
         ? 'mongodb://localhost:27017/maoga_dev'
         : 'mongodb://localhost:27017/maoga_prod_default'), // Default for prod if not set
-    options: { ...baseConfig.database.options, ...envConfig.database?.options }
+    options: { ...baseConfig.database.options, ...envConfig.database?.options },
+    debug: envConfig.database?.debug ?? baseConfig.database.debug
   }
 };
 
@@ -145,17 +185,21 @@ if (env === 'test') {
   }
 }
 
-// Debug output (optional, can be removed or conditional)
-if (env === 'development' || env === 'test') {
+if (mergedConfig.logging.showConfig) {
+  /* eslint-disable no-console */
   console.log('=== CONFIG DEBUG START ===');
   console.log(`NODE_ENV: ${mergedConfig.env}`);
   console.log(`Effective Log Level: ${mergedConfig.logging.level}`);
+  console.log(`Module Log Levels: ${JSON.stringify(mergedConfig.logging.modules)}`);
   console.log(`CORS Origins: ${JSON.stringify(mergedConfig.cors.allowedOrigins)}`);
   console.log(`Rate Limit Window MS: ${mergedConfig.rateLimit.windowMs}`);
   console.log(`Rate Limit Max Requests: ${mergedConfig.rateLimit.maxRequests}`);
   console.log(`Database URI: ${mergedConfig.database.uri}`);
   console.log(`Database Options: ${JSON.stringify(mergedConfig.database.options)}`);
   console.log('=== CONFIG DEBUG END ===');
+  /* eslint-enable no-console */
 }
 
 module.exports = mergedConfig;
+
+

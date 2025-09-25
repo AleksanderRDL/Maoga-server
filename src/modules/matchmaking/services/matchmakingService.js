@@ -6,7 +6,7 @@ const Game = require('../../game/models/Game');
 const queueManager = require('./queueManager');
 const matchAlgorithmService = require('./matchAlgorithmService');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../../utils/errors');
-const logger = require('../../../utils/logger');
+const logger = require('../../../utils/logger').forModule('matchmaking:service');
 const socketManager = require('../../../services/socketManager');
 const config = require('../../../config');
 const notificationService = require('../../notification/services/notificationService');
@@ -543,3 +543,4 @@ class MatchmakingService {
 }
 
 module.exports = new MatchmakingService();
+

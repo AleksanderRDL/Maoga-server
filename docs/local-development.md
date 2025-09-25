@@ -31,3 +31,11 @@ When `npm run dev` is running, the API listens on `http://localhost:3000` and th
 ## Running with Docker
 `docker-compose up --build` still launches only the backend service. The compose file now calls `npm run dev:backend` internally so that you can keep using compose independent of the new full-stack script.
 
+
+## Logging controls
+- The backend logging now uses scoped Pino loggers. By default development logs stay on `info`, while background jobs (`jobs:gameSync`, `jobs:notificationQueue`, and `services:socket`) drop to `warn` so they stay quiet during feature testing.
+- Override the global level with `LOG_LEVEL=<level>` and toggle pretty output with `LOG_PRETTY=true|false`.
+- Use module overrides via `LOG_MODULE_LEVELS`, e.g. `LOG_MODULE_LEVELS=jobs:gameSync=debug,services:socket=info npm run dev`, or the shortcut vars (`LOG_LEVEL_GAME_SYNC`, `LOG_LEVEL_NOTIFICATION_QUEUE`, `LOG_LEVEL_SOCKET`).
+- Toggle verbose Mongoose query logging with `MONGOOSE_DEBUG=true`; adjust its verbosity via `LOG_LEVEL_MONGOOSE=<level>` (scope: `database:mongoose`).
+- Set `LOG_CONFIG_DEBUG=true` when you need the configuration banner on startup; it is otherwise suppressed.
+- All other modules inherit the global level. When you need more detail, request a scoped logger in code with `logger.forModule('<module>')` and adjust the module level.

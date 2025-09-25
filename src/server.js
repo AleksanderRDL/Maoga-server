@@ -1,5 +1,5 @@
 const config = require('./config');
-const logger = require('./utils/logger');
+const logger = require('./utils/logger').forModule('app:server');
 const databaseManager = require('./config/database');
 const app = require('./app');
 const gameSyncJob = require('./jobs/gameSyncJob');
@@ -100,3 +100,4 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start the server
 startServer();
+

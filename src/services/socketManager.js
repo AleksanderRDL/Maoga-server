@@ -1,7 +1,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
-const logger = require('../utils/logger');
+const logger = require('../utils/logger').forModule('services:socket');
 const { AuthenticationError } = require('../utils/errors');
 const User = require('../modules/auth/models/User');
 const socketMetrics = require('./socketMetrics');
@@ -788,3 +788,4 @@ class SocketManager {
 }
 
 module.exports = new SocketManager();
+

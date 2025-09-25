@@ -1,6 +1,6 @@
 const NodeCache = require('node-cache');
 const config = require('../../../config');
-const logger = require('../../../utils/logger');
+const logger = require('../../../utils/logger').forModule('game:cache');
 const { escapeRegExp } = require('../../../utils/validation');
 
 class CacheService {
@@ -168,3 +168,4 @@ class CacheService {
 
 // Export singleton instance
 module.exports = new CacheService();
+

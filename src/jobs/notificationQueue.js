@@ -1,4 +1,4 @@
-const logger = require('../utils/logger');
+const logger = require('../utils/logger').forModule('jobs:notificationQueue');
 const notificationService = require('../modules/notification/services/notificationService');
 
 class NotificationQueue {
@@ -195,3 +195,4 @@ class NotificationQueue {
 }
 
 module.exports = new NotificationQueue();
+

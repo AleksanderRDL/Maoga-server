@@ -1,5 +1,5 @@
 const EventEmitter = require('events');
-const logger = require('../../../utils/logger');
+const logger = require('../../../utils/logger').forModule('matchmaking:queueManager');
 const { ConflictError, BadRequestError } = require('../../../utils/errors'); // Added BadRequestError
 
 class QueueManager extends EventEmitter {
@@ -310,3 +310,4 @@ class QueueManager extends EventEmitter {
 
 // Export singleton instance
 module.exports = new QueueManager();
+
