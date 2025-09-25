@@ -1,29 +1,32 @@
-# Development Dockerfile
-FROM node:18-alpine
+# syntax=docker/dockerfile:1.4
+FROM node:18-alpine AS base
 
-# Set working directory
 WORKDIR /usr/src/app
 
-# Install dependencies for native modules
+# Install dependencies needed for native Node modules
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
-COPY package*.json ./
+# Copy dependency manifests for root project and frontend app
+COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./frontend/
 
-# Install dependencies
-RUN npm ci
+# Install backend dependencies without running lifecycle scripts yet
+RUN npm ci --ignore-scripts
 
-# Copy application files
+# Install frontend dependencies explicitly to avoid relying on postinstall hooks
+RUN npm --prefix frontend ci --ignore-scripts
+
+# Copy the remaining application source
 COPY . .
 
-# Create logs directory
+# Create logs directory expected by the app
 RUN mkdir -p logs
 
-# Switch to non-root user
+# Switch to a non-root user provided by the Node base image
 USER node
 
-# Expose port
+# Expose the API port
 EXPOSE 3000
 
-# Start application
-CMD ["npm", "run", "dev"]
+# Default command launches the backend dev server (nodemon)
+CMD ["npm", "run", "dev:backend"]
