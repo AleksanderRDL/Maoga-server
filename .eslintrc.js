@@ -33,7 +33,7 @@ module.exports = {
 
         // Style
         'indent': 'off',
-        'quotes': ['error', 'single'],
+        // 'quotes': ['error', 'single'],
         'semi': ['error', 'always'],
         'comma-dangle': ['error', 'never'],
         'object-curly-spacing': ['error', 'always'],
