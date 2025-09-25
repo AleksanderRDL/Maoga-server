@@ -19,6 +19,12 @@ This document explains how to run the Maoga stack (backend + frontend) locally w
 
 When `npm run dev` is running, the API listens on `http://localhost:3000` and the frontend on `http://localhost:5173`. Update `frontend/.env` if you need to target a different API origin.
 
+## Preloaded development data
+- `npm run dev` seeds the local Mongo database with sample games, six user accounts, active lobbies, and active matchmaking searches once the backend connects.
+- Seeded accounts (password `PlayTogether123!`): `brimstone@maoga.test`, `aurora@maoga.test`, `viper@maoga.test`, `pixelwave@maoga.test`, `supportive@maoga.test`, `shotcaller@maoga.test`.
+- Control the behaviour with environment flags: `SKIP_DEV_SEED=true` skips seeding, `ENABLE_DEV_SEED=true` forces it outside development, `FAIL_ON_DEV_SEED_ERROR=true` makes startup fail if the seeding script throws.
+- Example lobbies created on boot: `Valorant Night Ranked`, `Summoner's Rift Flex Squad`, and `Fortnite Zero Build Friday`.
+
 ## Tests and linting
 - `npm test` executes the backend test suite (Mocha + SuperTest) with the proper environment flags.
 - `npm run test:backend` is available if you prefer an explicit name for automation.

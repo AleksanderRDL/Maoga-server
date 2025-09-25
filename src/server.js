@@ -7,6 +7,7 @@ const socketManager = require('./services/socketManager');
 const notificationQueue = require('./jobs/notificationQueue');
 const pushService = require('./modules/notification/services/pushService');
 const emailService = require('./modules/notification/services/emailService');
+const { seedDevData } = require('./utils/devSeeder');
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -34,6 +35,8 @@ async function startServer() {
     // Connect to MongoDB
     await databaseManager.connect();
     logger.info('MongoDB connected successfully');
+
+    await seedDevData();
 
     // Start HTTP server
     server = app.listen(config.port, () => {
