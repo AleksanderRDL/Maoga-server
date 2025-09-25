@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import apiClient from '../services/apiClient.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const regionOptions = ['NA', 'EU', 'AS', 'SA', 'OC', 'AF', 'ANY'];
 const modeOptions = [
@@ -25,6 +26,7 @@ const formatDuration = (ms) => {
 
 const MatchmakingPage = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const focusGame = location.state?.focusGame;
 
   const [trending, setTrending] = useState([]);
@@ -40,6 +42,32 @@ const MatchmakingPage = () => {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const prefs = user.gamingPreferences || {};
+    if (prefs.competitiveness === 'competitive') {
+      setMode('ranked');
+    } else if (prefs.competitiveness === 'balanced') {
+      setMode('competitive');
+    } else if (prefs.competitiveness === 'casual') {
+      setMode('casual');
+    }
+    if (Array.isArray(prefs.regions) && prefs.regions.length > 0) {
+      setRegions(prefs.regions);
+    }
+    if (Array.isArray(prefs.languages) && prefs.languages.length > 0) {
+      setLanguageInput(prefs.languages.join(', '));
+    }
+    if (prefs.groupSize?.min || prefs.groupSize?.max) {
+      setGroupSize({
+        min: prefs.groupSize.min || 1,
+        max: prefs.groupSize.max || Math.max(prefs.groupSize.min || 1, 5)
+      });
+    }
+  }, [user]);
 
   const addGame = useCallback(
     (game) => {
@@ -71,11 +99,15 @@ const MatchmakingPage = () => {
       const games = response.data?.data?.games || [];
       setTrending(games);
       if (focusGame) {
-        const match = games.find((game) => game._id === focusGame._id);
-        if (match) {
-          addGame(match);
-        } else {
-          addGame(focusGame);
+        if (focusGame._id) {
+          const match = games.find((game) => game._id === focusGame._id);
+          if (match) {
+            addGame(match);
+          } else {
+            addGame(focusGame);
+          }
+        } else if (focusGame.name) {
+          setSearchQuery(focusGame.name);
         }
       }
     } catch (err) {
@@ -180,22 +212,46 @@ const MatchmakingPage = () => {
     return 'Matchmaking status unavailable.';
   }, [status]);
 
+  const hasActiveRequest = Boolean(status?.request);
+
+  const availableGames = searchResults.length > 0 ? searchResults : trending;
+
   return (
     <div className="page page--matchmaking">
       <section className="section">
         <div className="section__header">
-          <h3>Create lobby request</h3>
+          <h3>Matchmaking</h3>
           <button type="button" className="link" onClick={fetchStatus} disabled={checkingStatus}>
-            {checkingStatus ? 'Checking…' : 'Check status'}
+            {checkingStatus ? 'Checking…' : 'Refresh status'}
           </button>
         </div>
         {feedback ? <div className="page__feedback">{feedback}</div> : null}
-        <p className="status-summary">{statusSummary}</p>
-        {status?.request ? (
-          <button type="button" className="danger-button" onClick={cancelRequest}>
-            Cancel current request
-          </button>
-        ) : null}
+        {hasActiveRequest ? (
+          <div className="matchmaking-status">
+            <div>
+              <strong>Active search</strong>
+              <p>{statusSummary}</p>
+            </div>
+            <div className="matchmaking-status__meta">
+              <span>
+                Mode: <strong>{status?.request?.criteria?.gameMode || '—'}</strong>
+              </span>
+              <span>
+                Regions: <strong>{(status?.request?.criteria?.regions || []).join(', ') || 'Global'}</strong>
+              </span>
+              <span>
+                Group size: <strong>{`${status?.request?.criteria?.groupSize?.min || 1}-${
+                  status?.request?.criteria?.groupSize?.max || 5
+                }`}</strong>
+              </span>
+            </div>
+            <button type="button" className="danger-button" onClick={cancelRequest}>
+              Cancel search
+            </button>
+          </div>
+        ) : (
+          <p className="status-summary">{statusSummary}</p>
+        )}
       </section>
 
       <form className="section matchmaking-form" onSubmit={submitRequest}>
@@ -214,7 +270,7 @@ const MatchmakingPage = () => {
               />
             </label>
             <div className="game-selection__list">
-              {(searchResults.length > 0 ? searchResults : trending).map((game) => {
+              {availableGames.map((game) => {
                 const isSelected = selectedGames.some((entry) => entry.game._id === game._id);
                 return (
                   <button
@@ -224,10 +280,13 @@ const MatchmakingPage = () => {
                     onClick={() => addGame(game)}
                   >
                     <strong>{game.name}</strong>
-                    <span>{game.gameModes?.[0]?.name || 'Mode TBD'}</span>
+                    <span>{game.gameModes?.[0]?.name || game.genres?.[0]?.name || 'Mode TBD'}</span>
                   </button>
                 );
               })}
+              {availableGames.length === 0 ? (
+                <p className="surface__subtitle">No games found. Try a different search.</p>
+              ) : null}
             </div>
           </div>
           <div className="game-selection__panel">
@@ -262,6 +321,9 @@ const MatchmakingPage = () => {
           </div>
         </div>
 
+        <div className="section__header">
+          <h3>Tune your search</h3>
+        </div>
         <div className="matchmaking-grid">
           <label>
             <span>Game mode</span>

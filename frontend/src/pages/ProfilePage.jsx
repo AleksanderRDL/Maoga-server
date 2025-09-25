@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGameArt } from '../services/gameArt.js';
@@ -11,41 +11,6 @@ const socialPlatforms = [
   { id: 'steam', label: 'Steam', placeholder: 'steamcommunity.com/id/you' },
   { id: 'xbox', label: 'Xbox', placeholder: 'Gamertag' },
   { id: 'psn', label: 'PlayStation', placeholder: 'PSN ID' }
-];
-
-const friendsMock = [
-  {
-    id: 'fr1',
-    name: 'Maria',
-    handle: '@mferfly',
-    status: 'Playing Baldur\'s Gate 3',
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Maria',
-    lastOnline: 'Online'
-  },
-  {
-    id: 'fr2',
-    name: 'Tessa',
-    handle: '@myBad',
-    status: 'In champion select (LoL)',
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Tessa',
-    lastOnline: '5m ago'
-  },
-  {
-    id: 'fr3',
-    name: 'Cassie',
-    handle: '@glitchGoddess',
-    status: 'Streaming Valorant customs',
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Cassie',
-    lastOnline: '20m ago'
-  },
-  {
-    id: 'fr4',
-    name: 'Nora',
-    handle: '@thunderNeko',
-    status: 'Looking for Apex squad',
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nora',
-    lastOnline: 'Yesterday'
-  }
 ];
 
 const defaultFeed = [
@@ -63,6 +28,24 @@ const defaultFeed = [
   }
 ];
 
+const profileTips = [
+  {
+    id: 'tip1',
+    title: 'Complete your bio',
+    description: 'A few personal lines help squadmates connect faster.'
+  },
+  {
+    id: 'tip2',
+    title: 'Add more languages',
+    description: 'Broaden your matchmaking pool with secondary languages.'
+  },
+  {
+    id: 'tip3',
+    title: 'Link socials',
+    description: 'Make it easier for friends to coordinate outside Maoga.'
+  }
+];
+
 const ProfilePage = () => {
   const { user, refreshProfile, logout } = useAuth();
   const [displayName, setDisplayName] = useState('');
@@ -75,8 +58,11 @@ const ProfilePage = () => {
     socialPlatforms.reduce((acc, platform) => ({ ...acc, [platform.id]: '' }), {})
   );
   const [linkedGames, setLinkedGames] = useState([]);
-  const [newGameTitle, setNewGameTitle] = useState('');
-  const [newGameRole, setNewGameRole] = useState('');
+  const [gameSuggestions, setGameSuggestions] = useState([]);
+  const [gameOptions, setGameOptions] = useState([]);
+  const [gameSearch, setGameSearch] = useState('');
+  const [loadingGameOptions, setLoadingGameOptions] = useState(false);
+  const [gameSearchError, setGameSearchError] = useState(null);
   const [feedEntries, setFeedEntries] = useState(defaultFeed);
   const [feedDraft, setFeedDraft] = useState('');
   const [feedback, setFeedback] = useState(null);
@@ -100,9 +86,11 @@ const ProfilePage = () => {
         setLinkedGames(
           user.gameProfiles.map((profile) => ({
             id: profile._id,
+            gameId: profile.gameId?._id,
             title: profile.gameId?.name || 'Game',
             role: profile.role || profile.rank || '',
-            handle: profile.inGameName || ''
+            handle: profile.inGameName || '',
+            gameData: profile.gameId || { name: profile.gameId?.name }
           }))
         );
       }
@@ -117,6 +105,49 @@ const ProfilePage = () => {
       })),
     []
   );
+
+  const loadTrendingGames = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/games/trending', { params: { limit: 8 } });
+      const games = response.data?.data?.games || [];
+      setGameSuggestions(games);
+      setGameOptions(games);
+    } catch (err) {
+      console.error('Failed to load trending games', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTrendingGames();
+  }, [loadTrendingGames]);
+
+  useEffect(() => {
+    const query = gameSearch.trim();
+    if (query.length < 2) {
+      setGameOptions(gameSuggestions);
+      setGameSearchError(null);
+      return undefined;
+    }
+
+    const timeout = setTimeout(async () => {
+      setLoadingGameOptions(true);
+      try {
+        const response = await apiClient.get('/games', {
+          params: { q: query, limit: 12 }
+        });
+        const games = response.data?.data?.games || [];
+        setGameOptions(games);
+        setGameSearchError(games.length === 0 ? 'No games found. Try another title.' : null);
+      } catch (err) {
+        console.error('Game search failed', err);
+        setGameSearchError('Unable to search games right now.');
+      } finally {
+        setLoadingGameOptions(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [gameSearch, gameSuggestions]);
 
   const saveProfile = async (event) => {
     event.preventDefault();
@@ -173,25 +204,32 @@ const ProfilePage = () => {
     setLocalNotice('Social links saved locally. TODO: persist to backend when endpoint is available.');
   };
 
-  const handleAddGame = (event) => {
-    event.preventDefault();
-    if (!newGameTitle.trim()) {
+  const handleSelectGame = (game) => {
+    if (!game?._id) {
       return;
     }
-    const nextGame = {
-      id: `local-${Date.now()}`,
-      title: newGameTitle,
-      role: newGameRole,
-      handle: ''
-    };
-    setLinkedGames((prev) => [nextGame, ...prev]);
-    setNewGameTitle('');
-    setNewGameRole('');
-    setLocalNotice('Game link added locally. TODO: sync with backend game profile endpoint.');
+    setLinkedGames((prev) => {
+      if (prev.some((entry) => entry.gameId === game._id)) {
+        setLocalNotice('That game is already in your showcase.');
+        return prev;
+      }
+      const nextGame = {
+        id: `local-${Date.now()}`,
+        gameId: game._id,
+        title: game.name,
+        role: '',
+        handle: '',
+        gameData: game
+      };
+      setLocalNotice('Game added to your showcase. Sync coming soon.');
+      return [nextGame, ...prev];
+    });
   };
 
   const updateGameEntry = (gameId, field, value) => {
-    setLinkedGames((prev) => prev.map((game) => (game.id === gameId ? { ...game, [field]: value } : game)));
+    setLinkedGames((prev) =>
+      prev.map((game) => (game.id === gameId ? { ...game, [field]: value } : game))
+    );
   };
 
   const removeGameEntry = (gameId) => {
@@ -341,38 +379,51 @@ const ProfilePage = () => {
           </section>
 
           <section className="surface">
-            <div className="surface__header">
+            <div className="surface__header surface__header--stack">
               <div>
-                <h3>Game cards</h3>
-                <p className="surface__subtitle">
-                  Showcase the games you play and your roles.
-                </p>
+                <h3>Game showcase</h3>
+                <p className="surface__subtitle">Highlight the titles and roles that define your playstyle.</p>
               </div>
             </div>
-            <form className="game-form" onSubmit={handleAddGame}>
-              <input
-                type="text"
-                value={newGameTitle}
-                onChange={(event) => setNewGameTitle(event.target.value)}
-                placeholder="Game title"
-              />
-              <input
-                type="text"
-                value={newGameRole}
-                onChange={(event) => setNewGameRole(event.target.value)}
-                placeholder="Role, rank or preferred lane"
-              />
-              <button type="submit" className="primary-button">
-                Add game
-              </button>
-            </form>
+            <div className="game-form">
+              <label>
+                <span>Find a game</span>
+                <input
+                  type="search"
+                  value={gameSearch}
+                  onChange={(event) => setGameSearch(event.target.value)}
+                  placeholder="League of Legends, Valorant, Apex Legends…"
+                />
+              </label>
+              {loadingGameOptions ? <span className="surface__subtitle">Searching…</span> : null}
+              {gameSearchError ? <span className="page__error">{gameSearchError}</span> : null}
+            </div>
+            <div className="game-suggestion-grid">
+              {gameOptions.map((game) => (
+                <button
+                  type="button"
+                  key={game._id}
+                  className="game-suggestion"
+                  onClick={() => handleSelectGame(game)}
+                >
+                  <img src={getGameArt(game)} alt={game.name} />
+                  <div>
+                    <strong>{game.name}</strong>
+                    <span>{game.genres?.[0]?.name || game.gameModes?.[0]?.name || 'Multiplayer'}</span>
+                  </div>
+                </button>
+              ))}
+              {gameOptions.length === 0 && !loadingGameOptions ? (
+                <p className="surface__subtitle">No games to show right now.</p>
+              ) : null}
+            </div>
             <div className="linked-games">
               {linkedGames.length === 0 ? (
                 <p className="surface__subtitle">No game cards yet. Add your main titles above.</p>
               ) : null}
               {linkedGames.map((game) => (
                 <article key={game.id} className="linked-game-card">
-                  <img src={getGameArt({ name: game.title })} alt={game.title} />
+                  <img src={getGameArt(game.gameData || { name: game.title })} alt={game.title} />
                   <div>
                     <input
                       type="text"
@@ -412,7 +463,7 @@ const ProfilePage = () => {
               <textarea
                 value={feedDraft}
                 onChange={(event) => setFeedDraft(event.target.value)}
-                placeholder="Share what you\'re proud of..."
+                placeholder="Share what you're proud of..."
               />
               <button type="submit" className="primary-button">
                 Post update
@@ -431,51 +482,39 @@ const ProfilePage = () => {
         </div>
 
         <aside className="profile-sidebar">
-          <section className="surface surface--friends">
+          <section className="surface surface--profile">
             <div className="surface__header">
-              <h3>Friends &amp; chat</h3>
-              <button type="button" className="link">
-                View all →
-              </button>
+              <h3>Matchmaking defaults</h3>
+              <span className="surface__subtitle">Used as the baseline for quick searches.</span>
             </div>
-            <ul className="friend-feed">
-              {friendsMock.map((friend) => (
-                <li key={friend.id}>
-                  <img src={friend.avatar} alt={friend.name} />
-                  <div>
-                    <strong>
-                      {friend.name}
-                      <span>{friend.handle}</span>
-                    </strong>
-                    <p>{friend.status}</p>
-                  </div>
-                  <button type="button" className="ghost-button">
-                    Chat
-                  </button>
-                </li>
-              ))}
+            <ul className="profile-overview">
+              <li>
+                <span className="label">Competitiveness</span>
+                <strong>{competitiveness}</strong>
+              </li>
+              <li>
+                <span className="label">Regions</span>
+                <strong>{regions || 'Set your regions'}</strong>
+              </li>
+              <li>
+                <span className="label">Languages</span>
+                <strong>{languages || 'Add a language'}</strong>
+              </li>
             </ul>
           </section>
 
-          <section className="surface surface--chat">
+          <section className="surface surface--spotlight">
             <div className="surface__header">
-              <h3>Quick DM</h3>
-              <span className="surface__subtitle">Send a ping without leaving your profile.</span>
+              <h3>Profile tips</h3>
             </div>
-            <form className="chat-form">
-              <select>
-                {friendsMock.map((friend) => (
-                  <option key={friend.id} value={friend.id}>
-                    {friend.name} ({friend.lastOnline})
-                  </option>
-                ))}
-              </select>
-              <textarea placeholder="Say hi or share a clip link" />
-              <button type="button" className="primary-button" disabled>
-                Send (coming soon)
-              </button>
-            </form>
-            {/* TODO: Wire quick DM composer to chat service when available. */}
+            <ul className="news-list">
+              {profileTips.map((tip) => (
+                <li key={tip.id}>
+                  <strong>{tip.title}</strong>
+                  <p>{tip.description}</p>
+                </li>
+              ))}
+            </ul>
           </section>
         </aside>
       </div>
