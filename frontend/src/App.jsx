@@ -7,6 +7,7 @@ import LobbyDetailPage from './pages/LobbyDetailPage.jsx';
 import MatchmakingPage from './pages/MatchmakingPage.jsx';
 import ChatPage from './pages/ChatPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import NewsFeedPage from './pages/NewsFeedPage.jsx';
 import DashboardLayout from './components/DashboardLayout.jsx';
 import SplashScreen from './components/SplashScreen.jsx';
 
@@ -50,6 +51,7 @@ const App = () => {
         }
       >
         <Route index element={<HomePage />} />
+        <Route path="news" element={<NewsFeedPage />} />
         <Route path="lobbies" element={<LobbiesPage />} />
         <Route path="lobbies/:lobbyId" element={<LobbyDetailPage />} />
         <Route path="matchmaking" element={<MatchmakingPage />} />
