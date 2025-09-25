@@ -6,6 +6,43 @@ const pushService = require('./pushService');
 const { NotFoundError, BadRequestError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 
+const PREFERENCE_KEY_READERS = new Map([
+  ['friend_request', (settings) => settings?.friend_request],
+  ['friendRequests', (settings) => settings?.friendRequests],
+  ['match_found', (settings) => settings?.match_found],
+  ['matchFound', (settings) => settings?.matchFound],
+  ['lobby_invite', (settings) => settings?.lobby_invite],
+  ['lobbyInvites', (settings) => settings?.lobbyInvites],
+  ['message_received', (settings) => settings?.message_received],
+  ['messages', (settings) => settings?.messages],
+  ['system', (settings) => settings?.system],
+  ['achievement_earned', (settings) => settings?.achievement_earned],
+  ['report_update', (settings) => settings?.report_update]
+]);
+
+const resolvePreferenceKeys = (notificationType) => {
+  switch (notificationType) {
+    case 'friend_request':
+    case 'friend_accepted':
+      return ['friend_request', 'friendRequests'];
+    case 'match_found':
+      return ['match_found', 'matchFound'];
+    case 'lobby_invite':
+    case 'lobby_ready':
+      return ['lobby_invite', 'lobbyInvites'];
+    case 'message_received':
+      return ['message_received', 'messages'];
+    case 'achievement_earned':
+      return ['achievement_earned', 'system'];
+    case 'report_update':
+      return ['report_update', 'system'];
+    case 'system_announcement':
+      return ['system'];
+    default:
+      return ['system'];
+  }
+};
+
 class NotificationService {
   /**
    * Create and dispatch a notification
@@ -66,26 +103,21 @@ class NotificationService {
     const channels = [];
     const settings = user.notificationSettings || {};
 
-    // Map notification types to preference keys in user settings
-    // Keys mirror the structure stored on the user document
-    const preferenceMap = {
-      friend_request: ['friend_request', 'friendRequests'],
-      friend_accepted: ['friend_request', 'friendRequests'],
-      match_found: ['match_found', 'matchFound'],
-      lobby_invite: ['lobby_invite', 'lobbyInvites'],
-      lobby_ready: ['lobby_invite', 'lobbyInvites'],
-      message_received: ['message_received', 'messages'],
-      system_announcement: ['system'],
-      achievement_earned: ['achievement_earned', 'system'],
-      report_update: ['report_update', 'system']
-    };
-
-    const preferenceKeys = preferenceMap[notificationType] || ['system'];
+    const preferenceKeys = resolvePreferenceKeys(notificationType);
 
     const getPreference = (channelSettings) => {
+      if (!channelSettings) {
+        return undefined;
+      }
+
       for (const key of preferenceKeys) {
-        if (channelSettings && Object.prototype.hasOwnProperty.call(channelSettings, key)) {
-          return channelSettings[key];
+        const reader = PREFERENCE_KEY_READERS.get(key);
+        if (!reader) {
+          continue;
+        }
+        const value = reader(channelSettings);
+        if (value !== undefined) {
+          return value;
         }
       }
       return undefined;

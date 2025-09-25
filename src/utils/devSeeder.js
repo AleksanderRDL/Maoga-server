@@ -549,7 +549,13 @@ const LOBBY_SEEDS = [
     gameMode: 'competitive',
     hostUsername: 'brimstone',
     members: [
-      { username: 'brimstone', status: 'ready', isHost: true, readyStatus: true, joinedMinutesAgo: 25 },
+      {
+        username: 'brimstone',
+        status: 'ready',
+        isHost: true,
+        readyStatus: true,
+        joinedMinutesAgo: 25
+      },
       { username: 'viper', status: 'joined', readyStatus: false, joinedMinutesAgo: 22 },
       { username: 'pixelwave', status: 'joined', readyStatus: false, joinedMinutesAgo: 18 },
       { username: 'supportive', status: 'ready', readyStatus: true, joinedMinutesAgo: 15 }
@@ -565,13 +571,19 @@ const LOBBY_SEEDS = [
     formedAt: minutesAgo(30)
   },
   {
-    name: 'Summoner\'s Rift Flex Squad',
+    name: "Summoner's Rift Flex Squad",
     status: 'ready',
     gameSlug: 'league-of-legends',
     gameMode: 'ranked',
     hostUsername: 'aurora',
     members: [
-      { username: 'aurora', status: 'ready', isHost: true, readyStatus: true, joinedMinutesAgo: 35 },
+      {
+        username: 'aurora',
+        status: 'ready',
+        isHost: true,
+        readyStatus: true,
+        joinedMinutesAgo: 35
+      },
       { username: 'supportive', status: 'ready', readyStatus: true, joinedMinutesAgo: 32 },
       { username: 'brimstone', status: 'ready', readyStatus: true, joinedMinutesAgo: 28 },
       { username: 'shotcaller', status: 'joined', readyStatus: false, joinedMinutesAgo: 22 }
@@ -594,7 +606,13 @@ const LOBBY_SEEDS = [
     gameMode: 'casual',
     hostUsername: 'shotcaller',
     members: [
-      { username: 'shotcaller', status: 'ready', isHost: true, readyStatus: true, joinedMinutesAgo: 50 },
+      {
+        username: 'shotcaller',
+        status: 'ready',
+        isHost: true,
+        readyStatus: true,
+        joinedMinutesAgo: 50
+      },
       { username: 'supportive', status: 'ready', readyStatus: true, joinedMinutesAgo: 47 },
       { username: 'pixelwave', status: 'ready', readyStatus: true, joinedMinutesAgo: 44 }
     ],
@@ -727,9 +745,7 @@ const MATCH_REQUEST_SEEDS = [
     username: 'brimstone',
     status: 'matched',
     criteria: {
-      games: [
-        { slug: 'valorant', weight: 9 }
-      ],
+      games: [{ slug: 'valorant', weight: 9 }],
       gameMode: 'competitive',
       groupSize: { min: 5, max: 5 },
       regionPreference: 'preferred',
@@ -976,8 +992,8 @@ async function seedMatchRequests(userMap, gameMap, lobbyMap) {
       scheduledTime: seed.criteria.scheduledTime
     };
 
-    const preselectedUsers = (seed.preselectedUsernames || []).map((username) =>
-      ensureUser(userMap, username)._id
+    const preselectedUsers = (seed.preselectedUsernames || []).map(
+      (username) => ensureUser(userMap, username)._id
     );
 
     const matchedLobbyId = seed.matchedLobbyName

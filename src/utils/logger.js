@@ -62,8 +62,7 @@ function forModule(moduleName, additionalContext = {}) {
   }
 
   const moduleLevel = resolveModuleLevel(moduleName);
-  const hasExtraContext =
-    additionalContext && Object.keys(additionalContext).length > 0;
+  const hasExtraContext = additionalContext && Object.keys(additionalContext).length > 0;
   const cacheKey = moduleName + '|' + (moduleLevel || '');
 
   if (!hasExtraContext && moduleLoggerCache.has(cacheKey)) {

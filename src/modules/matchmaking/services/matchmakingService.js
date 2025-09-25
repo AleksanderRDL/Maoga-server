@@ -481,15 +481,13 @@ class MatchmakingService {
     const gameMode = queueInfo.gameMode;
     const region = queueInfo.region;
 
-    let queueSize = 0;
-    if (
-      stats.queueSizes &&
-      stats.queueSizes[gameId] &&
-      stats.queueSizes[gameId][gameMode] &&
-      stats.queueSizes[gameId][gameMode][region]
-    ) {
-      queueSize = stats.queueSizes[gameId][gameMode][region];
-    } else {
+    const { size: queueSize, found: queueFound } = queueManager.getQueueSize(
+      gameId,
+      gameMode,
+      region
+    );
+
+    if (!queueFound) {
       logger.warn(
         `estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`
       );
@@ -543,4 +541,3 @@ class MatchmakingService {
 }
 
 module.exports = new MatchmakingService();
-

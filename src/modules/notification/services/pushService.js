@@ -85,28 +85,36 @@ class PushService {
         }
       };
 
+      const validTokens = tokens.filter(Boolean);
+
       // Send to multiple tokens
       const response = await this.messaging.sendMulticast({
         ...message,
-        tokens: tokens.filter(Boolean) // Remove any null/undefined tokens
+        tokens: validTokens
       });
 
       const successfulTokens = [];
       const failedTokens = [];
+      const tokenIterator = validTokens.values();
 
-      response.responses.forEach((resp, idx) => {
+      response.responses.forEach((resp) => {
+        const { value: token, done } = tokenIterator.next();
+        if (done || !token) {
+          return;
+        }
+
         if (resp.success) {
-          successfulTokens.push(tokens[idx]);
+          successfulTokens.push(token);
         } else {
           failedTokens.push({
-            token: tokens[idx],
+            token,
             error: resp.error?.code || 'Unknown error'
           });
         }
       });
 
       logger.info('Push notifications sent', {
-        total: tokens.length,
+        total: validTokens.length,
         success: response.successCount,
         failure: response.failureCount
       });
@@ -139,16 +147,16 @@ class PushService {
    * Sanitize data for FCM
    */
   sanitizeData(data) {
-    const sanitized = {};
+    const entries = [];
 
     Object.entries(data || {}).forEach(([key, value]) => {
       // FCM data values must be strings
       if (value !== null && value !== undefined) {
-        sanitized[key] = String(value);
+        entries.push([key, String(value)]);
       }
     });
 
-    return sanitized;
+    return Object.fromEntries(entries);
   }
 
   /**

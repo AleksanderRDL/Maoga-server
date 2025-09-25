@@ -170,6 +170,25 @@ class QueueManager extends EventEmitter {
     return this.queues.get(gameId.toString())?.get(gameMode)?.get(region) || [];
   }
 
+  getQueueSize(gameId, gameMode, region) {
+    const gameQueues = this.queues.get(gameId.toString());
+    if (!gameQueues) {
+      return { size: 0, found: false };
+    }
+
+    const modeQueues = gameQueues.get(gameMode);
+    if (!modeQueues) {
+      return { size: 0, found: false };
+    }
+
+    const queue = modeQueues.get(region);
+    if (!queue) {
+      return { size: 0, found: false };
+    }
+
+    return { size: queue.length, found: true };
+  }
+
   /**
    * Get all requests across regions for a game mode
    */
@@ -218,21 +237,23 @@ class QueueManager extends EventEmitter {
    * Get queue statistics
    */
   getStats() {
-    const queueSizes = {};
+    const queueSizes = new Map();
 
     for (const [gameId, gameQueues] of this.queues) {
-      queueSizes[gameId] = {};
+      const modeMap = new Map();
       for (const [gameMode, modeQueues] of gameQueues) {
-        queueSizes[gameId][gameMode] = {};
+        const regionMap = new Map();
         for (const [region, queue] of modeQueues) {
-          queueSizes[gameId][gameMode][region] = queue.length;
+          regionMap.set(region, queue.length);
         }
+        modeMap.set(gameMode, Object.fromEntries(regionMap));
       }
+      queueSizes.set(gameId, Object.fromEntries(modeMap));
     }
 
     return {
       ...this.stats,
-      queueSizes,
+      queueSizes: Object.fromEntries(queueSizes),
       timestamp: new Date()
     };
   }
@@ -310,4 +331,3 @@ class QueueManager extends EventEmitter {
 
 // Export singleton instance
 module.exports = new QueueManager();
-

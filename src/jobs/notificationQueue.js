@@ -48,15 +48,23 @@ class NotificationQueue {
     logger.info('Notification queues stopped');
   }
 
+  getQueueByType(type) {
+    if (type === 'push') {
+      return this.queues.push;
+    }
+    if (type === 'email') {
+      return this.queues.email;
+    }
+    throw new Error(`Invalid queue type: ${type}`);
+  }
+
   /**
    * Add job to queue
    */
-  async addJob(type, data) {
-    if (!this.queues[type]) {
-      throw new Error(`Invalid queue type: ${type}`);
-    }
+  addJob(type, data) {
+    const queue = this.getQueueByType(type);
 
-    await this.queues[type].push({
+    queue.push({
       id: `${type}_${Date.now()}_${Math.random()}`,
       data,
       createdAt: new Date(),
@@ -67,6 +75,8 @@ class NotificationQueue {
       type,
       jobData: data
     });
+
+    return Promise.resolve();
   }
 
   /**
@@ -195,4 +205,3 @@ class NotificationQueue {
 }
 
 module.exports = new NotificationQueue();
-

@@ -9,8 +9,9 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-  const field = Object.keys(err.keyValue)[0];
-  const value = err.keyValue[field];
+  const duplicateEntry = Object.entries(err.keyValue || {})[0];
+  const field = duplicateEntry ? duplicateEntry[0] : 'field';
+  const value = duplicateEntry ? duplicateEntry[1] : 'unknown';
   const message = `${field} '${value}' already exists`;
   return new AppError(message, 409, 'DUPLICATE_FIELD', true); // Mark as operational
 };

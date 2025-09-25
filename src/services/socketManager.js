@@ -429,7 +429,7 @@ class SocketManager {
         return;
       }
 
-      const statuses = {};
+      const statusMap = new Map();
       userIds.forEach((userIdToWatch) => {
         if (typeof userIdToWatch !== 'string') {
           logger.warn('Invalid userId found in userIds array for status subscription', {
@@ -444,8 +444,10 @@ class SocketManager {
         logger.debug(
           `Socket ${socket.id} joined room ${roomName} for watching userId ${userIdToWatch}`
         );
-        statuses[userIdToWatch] = this.userSockets.has(userIdToWatch) ? 'online' : 'offline';
+        statusMap.set(userIdToWatch, this.userSockets.has(userIdToWatch) ? 'online' : 'offline');
       });
+
+      const statuses = Object.fromEntries(statusMap);
 
       socket.emit('user:status:update', { statuses }); // Emit initial statuses
       logger.info('Socket subscribed to user statuses', {
@@ -772,15 +774,15 @@ class SocketManager {
   }
 
   getStats() {
-    const activeRooms = {};
+    const activeRooms = new Map();
     this.rooms.forEach((sockets, roomName) => {
-      activeRooms[roomName] = sockets.size;
+      activeRooms.set(roomName, sockets.size);
     });
     return {
       connectedUsers: this.getConnectedUsersCount(),
       totalSockets: this.getTotalSocketsCount(),
       trackedRoomsCount: this.rooms.size,
-      trackedRoomDetails: activeRooms,
+      trackedRoomDetails: Object.fromEntries(activeRooms),
       metrics: socketMetrics.getMetrics(),
       timestamp: new Date()
     };
@@ -788,4 +790,3 @@ class SocketManager {
 }
 
 module.exports = new SocketManager();
-

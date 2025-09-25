@@ -215,10 +215,12 @@ class MatchAlgorithmService {
       skill: 0.2
     };
 
-    const totalScore = Object.entries(scores).reduce(
-      (sum, [key, score]) => sum + score * weights[key],
-      0
-    );
+    const totalScore =
+      scores.game * weights.game +
+      scores.gameMode * weights.gameMode +
+      scores.region * weights.region +
+      scores.language * weights.language +
+      scores.skill * weights.skill;
 
     return totalScore;
   }
@@ -388,18 +390,15 @@ class MatchAlgorithmService {
     let comparisons = 0;
 
     // Compare all pairs
-    for (let i = 0; i < participants.length; i++) {
-      for (let j = i + 1; j < participants.length; j++) {
-        const p1 = participants[i];
-        const p2 = participants[j];
-
+    participants.forEach((p1, index) => {
+      participants.slice(index + 1).forEach((p2) => {
         // Ensure p1.request and p2.request, and their criteria are defined
         if (!p1.request || !p1.request.criteria || !p2.request || !p2.request.criteria) {
           logger.warn(
             'Skipping participant pair due to missing request/criteria in calculateMatchQuality',
             { p1_id: p1.user?._id, p2_id: p2.user?._id }
           );
-          continue;
+          return;
         }
         // Ensure primary game can be determined for skill score calculation
         const primaryGame1 = p1.request.getPrimaryGame ? p1.request.getPrimaryGame() : null;
@@ -425,8 +424,8 @@ class MatchAlgorithmService {
         totalRegionCompat += this.calculateRegionScore(p1.request.criteria, p2.request.criteria);
         totalLangCompat += this.calculateLanguageScore(p1.request.criteria, p2.request.criteria);
         comparisons++;
-      }
-    }
+      });
+    });
 
     const avgRegion = comparisons > 0 ? totalRegionCompat / comparisons : 0;
     const avgLang = comparisons > 0 ? totalLangCompat / comparisons : 0;
@@ -448,11 +447,11 @@ class MatchAlgorithmService {
     const relaxationIntervals = [30000, 60000, 120000, 180000, 300000]; // 30s, 1m, 2m, 3m, 5m
 
     let newRelaxationLevel = 0;
-    for (let i = 0; i < relaxationIntervals.length; i++) {
-      if (waitTime >= relaxationIntervals[i]) {
-        newRelaxationLevel = i + 1;
+    relaxationIntervals.forEach((interval, index) => {
+      if (waitTime >= interval) {
+        newRelaxationLevel = index + 1;
       }
-    }
+    });
 
     if (newRelaxationLevel > request.relaxationLevel) {
       request.relaxationLevel = newRelaxationLevel;
@@ -488,14 +487,28 @@ class MatchAlgorithmService {
         totalMatches: matches.length,
         averageGroupSize: 0,
         averageWaitTime: 0,
-        averageMatchQuality: 0,
-        matchesByGame: {},
-        matchesByMode: {},
-        relaxationLevelsUsed: {}
+        averageMatchQuality: 0
+      };
+
+      const matchesByGame = new Map();
+      const matchesByMode = new Map();
+      const relaxationLevels = new Map();
+
+      const incrementCount = (map, key) => {
+        if (key === undefined || key === null) {
+          return;
+        }
+        const current = map.get(key) || 0;
+        map.set(key, current + 1);
       };
 
       if (matches.length === 0) {
-        return stats;
+        return {
+          ...stats,
+          matchesByGame: {},
+          matchesByMode: {},
+          relaxationLevelsUsed: {}
+        };
       }
 
       let totalParticipants = 0;
@@ -516,17 +529,12 @@ class MatchAlgorithmService {
           totalQuality += match.matchQuality.overallScore;
         }
 
-        // By game
-        const gameId = match.gameId.toString();
-        stats.matchesByGame[gameId] = (stats.matchesByGame[gameId] || 0) + 1;
+        incrementCount(matchesByGame, match.gameId?.toString());
+        incrementCount(matchesByMode, match.gameMode);
 
-        // By mode
-        stats.matchesByMode[match.gameMode] = (stats.matchesByMode[match.gameMode] || 0) + 1;
-
-        // Relaxation levels
         if (match.matchingMetrics?.relaxationLevelsUsed) {
           match.matchingMetrics.relaxationLevelsUsed.forEach((level) => {
-            stats.relaxationLevelsUsed[level] = (stats.relaxationLevelsUsed[level] || 0) + 1;
+            incrementCount(relaxationLevels, level);
           });
         }
       });
@@ -535,7 +543,12 @@ class MatchAlgorithmService {
       stats.averageWaitTime = totalWaitTime / matches.length;
       stats.averageMatchQuality = totalQuality / matches.length;
 
-      return stats;
+      return {
+        ...stats,
+        matchesByGame: Object.fromEntries(matchesByGame),
+        matchesByMode: Object.fromEntries(matchesByMode),
+        relaxationLevelsUsed: Object.fromEntries(relaxationLevels)
+      };
     } catch (error) {
       logger.error('Failed to get match statistics', { error: error.message });
       throw error;

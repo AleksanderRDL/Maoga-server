@@ -147,16 +147,22 @@ class EmailService {
    * Get template name based on notification type
    */
   getTemplateName(notificationType) {
-    const templateMap = {
-      friend_request: 'friend-request',
-      friend_accepted: 'friend-accepted',
-      match_found: 'match-found',
-      lobby_invite: 'lobby-invite',
-      system_announcement: 'system-announcement',
-      achievement_earned: 'achievement'
-    };
-
-    return templateMap[notificationType] || 'default';
+    switch (notificationType) {
+      case 'friend_request':
+        return 'friend-request';
+      case 'friend_accepted':
+        return 'friend-accepted';
+      case 'match_found':
+        return 'match-found';
+      case 'lobby_invite':
+        return 'lobby-invite';
+      case 'system_announcement':
+        return 'system-announcement';
+      case 'achievement_earned':
+        return 'achievement';
+      default:
+        return 'default';
+    }
   }
 
   /**

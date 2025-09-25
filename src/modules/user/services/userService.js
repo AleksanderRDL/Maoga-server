@@ -41,36 +41,36 @@ class UserService {
    */
   async updateProfile(userId, updateData) {
     try {
-      await this.getUserById(userId); // Ensures user exists and is not deleted
+      const user = await this.getUserById(userId); // Ensures user exists and is not deleted
 
-      // Fields that can be updated
-      const allowedFields = ['displayName', 'bio', 'profileImage'];
-      const profileUpdate = {};
+      user.profile = user.profile || {};
+      const updatedFields = [];
 
-      allowedFields.forEach((field) => {
-        if (updateData[field] !== undefined) {
-          // field is from allowedFields, mitigating object injection for the key.
-          // eslint-disable-next-line security/detect-object-injection
-          profileUpdate[`profile.${field}`] = updateData[field]; // Line 55
-        }
-      });
-
-      if (Object.keys(profileUpdate).length === 0) {
-        logger.info('No valid fields to update for user profile', { userId });
-        return this.getUserById(userId);
+      if (updateData.displayName !== undefined) {
+        user.profile.displayName = updateData.displayName;
+        updatedFields.push('profile.displayName');
       }
 
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { $set: profileUpdate },
-        { new: true, runValidators: true }
-      );
+      if (updateData.bio !== undefined) {
+        user.profile.bio = updateData.bio;
+        updatedFields.push('profile.bio');
+      }
 
-      // Logging keys of a safely constructed object is generally fine.
-      // eslint-disable-next-line security/detect-object-injection
-      logger.info('User profile updated', { userId, fields: Object.keys(profileUpdate) }); // Line 57
+      if (updateData.profileImage !== undefined) {
+        user.profile.profileImage = updateData.profileImage;
+        updatedFields.push('profile.profileImage');
+      }
 
-      return updatedUser;
+      if (updatedFields.length === 0) {
+        logger.info('No valid fields to update for user profile', { userId });
+        return user;
+      }
+
+      await user.save();
+
+      logger.info('User profile updated', { userId, fields: updatedFields });
+
+      return user;
     } catch (error) {
       logger.error('Failed to update user profile', { error: error.message, userId });
       throw error;
@@ -82,35 +82,41 @@ class UserService {
    */
   async updateGamingPreferences(userId, preferences) {
     try {
-      await this.getUserById(userId); // Ensures user exists and is not deleted
+      const user = await this.getUserById(userId); // Ensures user exists and is not deleted
 
-      const allowedFields = ['competitiveness', 'preferredGames', 'regions', 'languages'];
-      const preferencesUpdate = {};
+      user.gamingPreferences = user.gamingPreferences || {};
+      const updatedFields = [];
 
-      allowedFields.forEach((field) => {
-        if (preferences[field] !== undefined) {
-          // field is from allowedFields, mitigating object injection for the key.
-          // eslint-disable-next-line security/detect-object-injection
-          preferencesUpdate[`gamingPreferences.${field}`] = preferences[field]; // Line 94
-        }
-      });
-
-      if (Object.keys(preferencesUpdate).length === 0) {
-        logger.info('No valid fields to update for gaming preferences', { userId });
-        return this.getUserById(userId);
+      if (preferences.competitiveness !== undefined) {
+        user.gamingPreferences.competitiveness = preferences.competitiveness;
+        updatedFields.push('gamingPreferences.competitiveness');
       }
 
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { $set: preferencesUpdate },
-        { new: true, runValidators: true }
-      );
+      if (preferences.preferredGames !== undefined) {
+        user.gamingPreferences.preferredGames = preferences.preferredGames;
+        updatedFields.push('gamingPreferences.preferredGames');
+      }
 
-      // Logging keys of a safely constructed object.
-      // eslint-disable-next-line security/detect-object-injection
-      logger.info('Gaming preferences updated', { userId, fields: Object.keys(preferencesUpdate) }); // Line 96
+      if (preferences.regions !== undefined) {
+        user.gamingPreferences.regions = preferences.regions;
+        updatedFields.push('gamingPreferences.regions');
+      }
 
-      return updatedUser;
+      if (preferences.languages !== undefined) {
+        user.gamingPreferences.languages = preferences.languages;
+        updatedFields.push('gamingPreferences.languages');
+      }
+
+      if (updatedFields.length === 0) {
+        logger.info('No valid fields to update for gaming preferences', { userId });
+        return user;
+      }
+
+      await user.save();
+
+      logger.info('Gaming preferences updated', { userId, fields: updatedFields });
+
+      return user;
     } catch (error) {
       logger.error('Failed to update gaming preferences', { error: error.message, userId });
       throw error;
@@ -126,18 +132,15 @@ class UserService {
 
       const { gameId, inGameName, rank, skillLevel } = gameProfileData;
 
-      const existingProfileIndex = user.gameProfiles.findIndex(
+      const matchingProfile = user.gameProfiles.find(
         (profile) => profile.gameId.toString() === gameId
       );
 
-      if (existingProfileIndex !== -1) {
-        user.gameProfiles[existingProfileIndex] = {
-          ...user.gameProfiles[existingProfileIndex].toObject(),
-          inGameName,
-          rank,
-          skillLevel,
-          updatedAt: new Date()
-        };
+      if (matchingProfile) {
+        matchingProfile.inGameName = inGameName;
+        matchingProfile.rank = rank;
+        matchingProfile.skillLevel = skillLevel;
+        matchingProfile.updatedAt = new Date();
       } else {
         user.gameProfiles.push({
           gameId,
@@ -186,48 +189,88 @@ class UserService {
    */
   async updateNotificationSettings(userId, settings) {
     try {
-      await this.getUserById(userId);
+      const user = await this.getUserById(userId);
 
-      const updateQuery = {};
-      const allowedChannels = ['email', 'push', 'inApp'];
+      user.notificationSettings = user.notificationSettings || {};
+      const updatedPaths = [];
 
-      allowedChannels.forEach((channel) => {
-        if (settings[channel] && typeof settings[channel] === 'object') {
-          // eslint-disable-next-line security/detect-object-injection
-          Object.keys(settings[channel]).forEach((notificationType) => {
-            // Related to line 138 (source of keys)
-            if (ALLOWED_NOTIFICATION_TYPES.includes(notificationType)) {
-              // eslint-disable-next-line security/detect-object-injection
-              const value = settings[channel][notificationType]; // Line 138 (access after validation)
-              if (typeof value === 'boolean') {
-                // Constructing the key path with validated 'channel' and 'notificationType'
-                // eslint-disable-next-line security/detect-object-injection
-                updateQuery[`notificationSettings.${channel}.${notificationType}`] = value; // Line 137
-              }
-            } else {
-              logger.warn('Attempt to update invalid notification type', {
-                userId,
-                channel,
-                notificationType
-              });
-            }
-          });
+      const updateChannel = (channelName, incoming, existing) => {
+        if (!incoming || typeof incoming !== 'object') {
+          return { changed: false, value: existing };
         }
-      });
 
-      if (Object.keys(updateQuery).length === 0) {
-        logger.info('No valid notification settings to update', { userId });
-        return this.getUserById(userId);
+        Object.keys(incoming).forEach((key) => {
+          if (!ALLOWED_NOTIFICATION_TYPES.includes(key)) {
+            logger.warn('Attempt to update invalid notification type', {
+              userId,
+              channel: channelName,
+              notificationType: key
+            });
+          }
+        });
+
+        const next = { ...existing };
+        let changed = false;
+
+        if (typeof incoming.friendRequests === 'boolean') {
+          next.friendRequests = incoming.friendRequests;
+          updatedPaths.push(`notificationSettings.${channelName}.friendRequests`);
+          changed = true;
+        }
+
+        if (typeof incoming.matchFound === 'boolean') {
+          next.matchFound = incoming.matchFound;
+          updatedPaths.push(`notificationSettings.${channelName}.matchFound`);
+          changed = true;
+        }
+
+        if (typeof incoming.lobbyInvites === 'boolean') {
+          next.lobbyInvites = incoming.lobbyInvites;
+          updatedPaths.push(`notificationSettings.${channelName}.lobbyInvites`);
+          changed = true;
+        }
+
+        if (typeof incoming.messages === 'boolean') {
+          next.messages = incoming.messages;
+          updatedPaths.push(`notificationSettings.${channelName}.messages`);
+          changed = true;
+        }
+
+        return { changed, value: changed ? next : existing };
+      };
+
+      const emailResult = updateChannel(
+        'email',
+        settings.email,
+        user.notificationSettings.email || {}
+      );
+      if (emailResult.changed) {
+        user.notificationSettings.email = emailResult.value;
       }
 
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { $set: updateQuery },
-        { new: true, runValidators: true }
-      );
+      const pushResult = updateChannel('push', settings.push, user.notificationSettings.push || {});
+      if (pushResult.changed) {
+        user.notificationSettings.push = pushResult.value;
+      }
 
-      logger.info('Notification settings updated', { userId });
-      return updatedUser;
+      const inAppResult = updateChannel(
+        'inApp',
+        settings.inApp,
+        user.notificationSettings.inApp || {}
+      );
+      if (inAppResult.changed) {
+        user.notificationSettings.inApp = inAppResult.value;
+      }
+
+      if (updatedPaths.length === 0) {
+        logger.info('No valid notification settings to update', { userId });
+        return user;
+      }
+
+      await user.save();
+
+      logger.info('Notification settings updated', { userId, fields: updatedPaths });
+      return user;
     } catch (error) {
       logger.error('Failed to update notification settings', { error: error.message, userId });
       throw error;
