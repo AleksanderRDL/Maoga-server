@@ -5,8 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "cross-env NODE_ENV=test mocha --recursive test --timeout 10000 --exit",
+    "dev": "concurrently -n backend,frontend \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "test": "npm run test:backend",
     "test:unit": "cross-env NODE_ENV=test mocha --recursive test/unit --timeout 10000 --exit",
     "test:integration": "cross-env NODE_ENV=test mocha --recursive test/integration --timeout 10000 --exit",
     "test:user": "cross-env NODE_ENV=test mocha --recursive test/**/*user* --timeout 10000 --exit",
@@ -14,15 +14,29 @@
     "test:admin": "cross-env NODE_ENV=test mocha --recursive test/**/*admin* test/**/*report* --timeout 10000 --exit",
     "test:matchmaking": "cross-env NODE_ENV=test mocha --recursive test/**/*match* --timeout 15000 --exit",
     "validate:matchmaking": "node scripts/validate-matchmaking.js",
-    "lint": "eslint src/**/*.js",
+    "lint": "npm run lint:backend && npm run lint:frontend",
     "lint:fix": "eslint src/**/*.js --fix",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\"",
     "migrate": "migrate-mongo up",
     "migrate:down": "migrate-mongo down",
-    "migrate:create": "migrate-mongo create"
+    "migrate:create": "migrate-mongo create",
+    "dev:backend": "nodemon src/server.js",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test:backend": "cross-env NODE_ENV=test mocha --recursive test --timeout 10000 --exit",
+    "lint:backend": "eslint src/**/*.js",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:frontend",
+    "postinstall": "npm --prefix frontend install"
   },
-  "keywords": ["gaming", "matchmaking", "nodejs", "express", "mongodb"],
+  "keywords": [
+    "gaming",
+    "matchmaking",
+    "nodejs",
+    "express",
+    "mongodb"
+  ],
   "author": "Maoga Team",
   "license": "UNLICENSED",
   "engines": {
@@ -63,6 +77,7 @@
     "prettier": "^3.1.1",
     "sinon": "^17.0.1",
     "supertest": "^6.3.3",
-    "socket.io-client": "^4.6.1"
+    "socket.io-client": "^4.6.1",
+    "concurrently": "^9.0.1"
   }
 }

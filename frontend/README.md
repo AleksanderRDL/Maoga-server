@@ -15,6 +15,8 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173
 
 ## Quick start
 
+From the repository root you can now run `npm run dev` to boot both backend and frontend together. If you only need the UI, use the standalone commands below:
+
 ```bash
 cd frontend
 cp .env.example .env   # edit if your backend runs on another host/port
