@@ -1,0 +1,13 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lol-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2027" />
+      <stop offset="50%" stop-color="#203a43" />
+      <stop offset="100%" stop-color="#2c5364" />
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="36" fill="url(#lol-gradient)" />
+  <g fill="#f9d36c" font-family="Poppins, Arial" font-weight="700" text-anchor="middle">
+    <text font-size="64" x="120" y="128">LoL</text>
+  </g>
+</svg>

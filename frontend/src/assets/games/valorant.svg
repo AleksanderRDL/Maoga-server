@@ -1,0 +1,12 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="val-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff0844" />
+      <stop offset="100%" stop-color="#ffb199" />
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="36" fill="url(#val-gradient)" />
+  <g fill="#0b1f2a" font-family="Poppins, Arial" font-weight="700" text-anchor="middle">
+    <text font-size="60" x="120" y="132">VAL</text>
+  </g>
+</svg>

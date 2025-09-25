@@ -1,17 +1,14 @@
 import clsx from 'clsx';
+import { getGameArt } from '../services/gameArt.js';
 
 const GameCard = ({ game, onSelect, isActive = false, actionSlot }) => {
-  const cover = game?.coverImage?.url || game?.coverImage?.thumbnailUrl;
+  const cover = getGameArt(game);
   const genres = (game?.genres || []).slice(0, 2).map((genre) => genre.name).join(' • ');
 
   return (
     <div className={clsx('game-card', isActive && 'game-card--active')}>
       <button type="button" className="game-card__media" onClick={onSelect}>
-        {cover ? (
-          <img src={cover} alt={game.name} loading="lazy" />
-        ) : (
-          <div className="game-card__placeholder">{game.name?.slice(0, 2)}</div>
-        )}
+        <img src={cover} alt={game.name} loading="lazy" />
       </button>
       <div className="game-card__body">
         <div>

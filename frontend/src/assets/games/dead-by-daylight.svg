@@ -1,0 +1,13 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="dbd-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f0c29" />
+      <stop offset="50%" stop-color="#302b63" />
+      <stop offset="100%" stop-color="#24243e" />
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="36" fill="url(#dbd-gradient)" />
+  <g fill="#d8e6ff" font-family="Poppins, Arial" font-weight="700" text-anchor="middle">
+    <text font-size="62" x="120" y="132">DBD</text>
+  </g>
+</svg>

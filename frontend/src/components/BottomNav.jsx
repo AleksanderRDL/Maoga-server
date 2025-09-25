@@ -4,9 +4,11 @@ import { RiTeamFill } from 'react-icons/ri';
 import { IoChatbubbleEllipses } from 'react-icons/io5';
 import { TbSwords } from 'react-icons/tb';
 import { FaUserAstronaut } from 'react-icons/fa';
+import { MdOutlineNewspaper } from 'react-icons/md';
 
 const navItems = [
-  { label: 'Discover', icon: PiCompassFill, to: '/' },
+  { label: 'Home', icon: PiCompassFill, to: '/' },
+  { label: 'News', icon: MdOutlineNewspaper, to: '/news' },
   { label: 'Lobbies', icon: RiTeamFill, to: '/lobbies' },
   { label: 'Match', icon: TbSwords, to: '/matchmaking' },
   { label: 'Chat', icon: IoChatbubbleEllipses, to: '/chat' },
