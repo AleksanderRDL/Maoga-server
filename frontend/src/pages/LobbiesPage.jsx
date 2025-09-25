@@ -69,10 +69,52 @@ const LobbiesPage = () => {
     }
   };
 
+  const preferredGameNames = useMemo(
+    () =>
+      (user?.gameProfiles || [])
+        .map((profile) => profile.gameId?.name?.toLowerCase())
+        .filter(Boolean),
+    [user]
+  );
+
   const activeLobbies = useMemo(
-    () => lobbies.filter((lobby) => lobby.status === 'forming' || lobby.status === 'ready'),
+    () =>
+      lobbies.filter((lobby) => {
+        const memberCount = lobby.memberCount ?? lobby.members?.length ?? 0;
+        const readyCount = lobby.readyCount ?? 0;
+        const needsPlayers = memberCount - readyCount;
+        return (lobby.status === 'forming' || lobby.status === 'ready') && needsPlayers > 0;
+      }),
     [lobbies]
   );
+
+  const prioritizedLobbies = useMemo(() => {
+    const computePriority = (lobby) => {
+      const gameName = lobby.gameId?.name?.toLowerCase() || '';
+      const memberCount = lobby.memberCount ?? lobby.members?.length ?? 0;
+      const readyCount = lobby.readyCount ?? 0;
+      const playersNeeded = Math.max(memberCount - readyCount, 0);
+      const matchesPreference = preferredGameNames.some((name) => gameName.includes(name));
+      return {
+        lobby,
+        matchesPreference,
+        playersNeeded
+      };
+    };
+
+    return activeLobbies
+      .map((lobby) => computePriority(lobby))
+      .sort((a, b) => {
+        if (a.matchesPreference !== b.matchesPreference) {
+          return a.matchesPreference ? -1 : 1;
+        }
+        if (a.playersNeeded !== b.playersNeeded) {
+          return b.playersNeeded - a.playersNeeded;
+        }
+        return 0;
+      })
+      .map((entry) => entry.lobby);
+  }, [activeLobbies, preferredGameNames]);
 
   return (
     <div className="page">
@@ -110,13 +152,14 @@ const LobbiesPage = () => {
 
       <section className="section">
         <div className="section__header">
-          <h3>Active lobbies</h3>
-          <span>{activeLobbies.length}</span>
+          <h3>Active lobbies needing players</h3>
+          <span>{prioritizedLobbies.length}</span>
         </div>
         <div className="lobby-list">
-          {activeLobbies.map((lobby) => {
+          {prioritizedLobbies.map((lobby) => {
             const memberCount = lobby.memberCount ?? lobby.members?.length ?? 0;
             const readyCount = lobby.readyCount ?? 0;
+            const playersNeeded = Math.max(memberCount - readyCount, 0);
             const currentMember = lobby.members?.find((member) => {
               const id = member.userId?._id || member.userId;
               return id?.toString() === user?._id;
@@ -124,9 +167,10 @@ const LobbiesPage = () => {
             const isReady = currentMember?.status === 'ready' || currentMember?.readyStatus;
             const host = lobby.members?.find((member) => member.isHost);
             const gameName = lobby.gameId?.name || 'Unknown game';
+            const isPreferred = preferredGameNames.some((name) => gameName.toLowerCase().includes(name));
 
             return (
-              <div className="lobby-card" key={lobby._id}>
+              <div className={`lobby-card ${isPreferred ? 'lobby-card--preferred' : ''}`} key={lobby._id}>
                 <div>
                   <h4>{lobby.name}</h4>
                   <p>
@@ -134,8 +178,9 @@ const LobbiesPage = () => {
                   </p>
                 </div>
                 <div className="lobby-card__meta">
+                  <span>{playersNeeded} player{playersNeeded === 1 ? '' : 's'} needed</span>
                   <span>
-                    {readyCount}/{memberCount} ready
+                    Ready: {readyCount}/{memberCount}
                   </span>
                   <span>Host: {host?.userId?.profile?.displayName || host?.userId?.username}</span>
                 </div>
@@ -157,7 +202,7 @@ const LobbiesPage = () => {
               </div>
             );
           })}
-          {activeLobbies.length === 0 && !loading ? (
+          {prioritizedLobbies.length === 0 && !loading ? (
             <div className="empty-state">
               <p>No active lobbies yet. Join a match to get started!</p>
             </div>

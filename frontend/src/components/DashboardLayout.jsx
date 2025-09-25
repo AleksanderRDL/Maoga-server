@@ -12,10 +12,10 @@ const DashboardLayout = () => {
   const displayName = user?.profile?.displayName || user?.username || 'Player';
   const subtitleMap = {
     '/': 'Connect, compete and belong',
-    '/news': 'Catch up with your crew',
-    '/lobbies': 'Coordinate with your squads',
     '/matchmaking': 'Tune your vibe and find the perfect lobby',
-    '/chat': 'Keep the hype going',
+    '/lobbies': 'Coordinate with your squads',
+    '/feed': 'Catch up with your crew',
+    '/friends': 'Grow your circle and stay in touch',
     '/profile': 'Fine-tune your presence'
   };
 

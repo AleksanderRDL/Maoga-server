@@ -11,7 +11,7 @@ const friendActivityMock = [
     id: 'f1',
     name: 'Maria',
     handle: '@mferfly',
-    status: 'Playing Baldur\'s Gate 3 (2/4)',
+    status: "Playing Baldur's Gate 3 (2/4)",
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Maria',
     ago: '5m ago'
   },
@@ -41,27 +41,60 @@ const friendActivityMock = [
   }
 ];
 
-const lobbySpotlightMock = [
+const buzzHighlights = [
   {
-    id: 'l1',
-    game: 'League of Legends',
-    title: 'Need 2 more for Aram',
-    members: '2/5',
-    language: 'English'
+    id: 'h1',
+    title: 'Friends online',
+    value: 9,
+    caption: 'Send them a ping from the friends hub'
   },
   {
-    id: 'l2',
-    game: 'Minecraft',
-    title: 'Building the Empire State',
-    members: '3/20',
-    language: 'Creative'
+    id: 'h2',
+    title: 'New achievements',
+    value: 3,
+    caption: 'Claim them before reset'
   },
   {
-    id: 'l3',
-    game: 'Tetris',
-    title: 'Ranked duo grind',
-    members: '1/2',
-    language: 'Any'
+    id: 'h3',
+    title: 'Open invites',
+    value: 4,
+    caption: 'Jump in before they fill up'
+  }
+];
+
+const gameSpotlights = [
+  {
+    id: 'g1',
+    title: 'League of Legends',
+    description: 'Patch 14.3 lands tomorrow. Expect balance changes to support mains.'
+  },
+  {
+    id: 'g2',
+    title: 'Valorant',
+    description: 'New agent teaser dropped. Ability reveal stream tonight at 19:00 CET.'
+  },
+  {
+    id: 'g3',
+    title: "Baldur's Gate 3",
+    description: 'Community challenge unlocked: finish Act 2 with zero long rests. 👀'
+  }
+];
+
+const friendSpotlights = [
+  {
+    id: 'fs1',
+    title: 'Emily & Zoe',
+    description: '5 days of duo queue in Apex Legends. They are on fire!'
+  },
+  {
+    id: 'fs2',
+    title: 'Maria',
+    description: 'Unlocked Emerald duo streak in League of Legends.'
+  },
+  {
+    id: 'fs3',
+    title: 'Pernille',
+    description: 'Hosting a creative Minecraft weekend build-off. RSVP open now.'
   }
 ];
 
@@ -69,21 +102,23 @@ const HomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [trending, setTrending] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
   const [activeGame, setActiveGame] = useState(null);
   const [loadingTrending, setLoadingTrending] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [error, setError] = useState(null);
-  const [queueStatus, setQueueStatus] = useState(null);
-  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const displayName = user?.profile?.displayName || user?.username || 'Commander';
+
+  const favouriteGames = useMemo(() => {
+    const games = (user?.gameProfiles || [])
+      .map((profile) => profile.gameId?.name)
+      .filter(Boolean)
+      .slice(0, 2);
+    return games.join(', ');
+  }, [user]);
 
   const featuredSession = useMemo(
     () => ({
       title: 'Scheduled session',
-      // TODO: Replace with real session data once backend endpoint is ready.
       startTime: dayjs().add(2, 'hour'),
       game: 'League of Legends',
       squadSize: '10/10',
@@ -97,7 +132,7 @@ const HomePage = () => {
     setLoadingTrending(true);
     setError(null);
     try {
-      const response = await apiClient.get('/games/trending', { params: { limit: 12 } });
+      const response = await apiClient.get('/games/trending', { params: { limit: 8 } });
       const games = response.data?.data?.games || [];
       setTrending(games);
       setActiveGame((prev) => prev || games[0] || null);
@@ -109,72 +144,13 @@ const HomePage = () => {
     }
   }, []);
 
-  const fetchQueueStatus = useCallback(async () => {
-    setCheckingStatus(true);
-    try {
-      const response = await apiClient.get('/matchmaking/status');
-      setQueueStatus(response.data?.data || null);
-    } catch (err) {
-      console.error('Failed to fetch matchmaking status', err);
-    } finally {
-      setCheckingStatus(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchTrending();
-    fetchQueueStatus();
-  }, [fetchQueueStatus, fetchTrending]);
-
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return undefined;
-    }
-
-    const timeout = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const response = await apiClient.get('/games', {
-          params: {
-            q: searchQuery,
-            limit: 12
-          }
-        });
-        setSearchResults(response.data?.data?.games || []);
-      } catch (err) {
-        console.error('Game search failed', err);
-        setError('Search failed. Try a different title.');
-      } finally {
-        setSearching(false);
-      }
-    }, 400);
-
-    return () => clearTimeout(timeout);
-  }, [searchQuery]);
+  }, [fetchTrending]);
 
   const handleJoinMatch = (game) => {
     navigate('/matchmaking', { state: { focusGame: game } });
   };
-
-  const queueSummary = useMemo(() => {
-    if (!queueStatus) {
-      return 'You are not currently queued.';
-    }
-    if (queueStatus.matchRequest === null) {
-      return queueStatus.message || 'Queue status unavailable.';
-    }
-    if (queueStatus.request) {
-      const queueInfo = queueStatus.queueInfo;
-      const mode = queueStatus.request.criteria?.gameMode || 'match';
-      const matches = queueInfo?.potentialMatches ?? 0;
-      const wait = queueInfo?.estimatedWaitTime
-        ? `${Math.round(queueInfo.estimatedWaitTime / 1000)}s`
-        : '—';
-      return `Searching ${mode} · ${matches} potential lobbies · ETA ${wait}`;
-    }
-    return 'Queue status unavailable.';
-  }, [queueStatus]);
 
   const activeGameMeta = useMemo(() => {
     if (!activeGame) {
@@ -203,21 +179,43 @@ const HomePage = () => {
             <div className="surface__header">
               <div>
                 <h2>Ready when you are, {displayName} ✨</h2>
-                <p>Sync your squad, jump into matchmaking or browse what\'s trending.</p>
+                <p>Sync your squad, jump into matchmaking or browse what's trending.</p>
               </div>
               <div className="surface__actions">
                 <button type="button" className="primary-button" onClick={() => navigate('/matchmaking')}>
                   Start matchmaking
                 </button>
-                <button type="button" className="ghost-button" onClick={fetchQueueStatus} disabled={checkingStatus}>
-                  {checkingStatus ? 'Refreshing…' : 'Refresh status'}
+                <button type="button" className="ghost-button" onClick={() => navigate('/friends')}>
+                  Check friends
                 </button>
               </div>
             </div>
             <div className="home-quick-stats">
-              <StatPill label="Queue" value={queueStatus?.request ? 'Active' : 'Idle'} variant="blue" />
               <StatPill label="Shards" value={user?.virtualCurrency ?? 0} variant="pink" />
               <StatPill label="XP" value={user?.karmaPoints ?? 0} variant="purple" />
+              <StatPill
+                label="Preferred regions"
+                value={(user?.gamingPreferences?.regions || ['Global']).slice(0, 2).join(', ')}
+                variant="blue"
+              />
+            </div>
+          </section>
+
+          <section className="surface surface--buzz">
+            <div className="surface__header">
+              <div>
+                <h3>What's buzzing</h3>
+                <p className="surface__subtitle">Quick hits from across your network</p>
+              </div>
+            </div>
+            <div className="buzz-grid">
+              {buzzHighlights.map((highlight) => (
+                <article key={highlight.id}>
+                  <strong>{highlight.value}</strong>
+                  <span>{highlight.title}</span>
+                  <p>{highlight.caption}</p>
+                </article>
+              ))}
             </div>
           </section>
 
@@ -252,102 +250,36 @@ const HomePage = () => {
             </p>
           </section>
 
-          <section className="surface surface--queue">
-            <div className="surface__header">
-              <div>
-                <h3>Matchmaking tracker</h3>
-                <p className="surface__subtitle">Live status of your current queue</p>
-              </div>
-              <button type="button" className="link" onClick={() => navigate('/matchmaking')}>
-                Manage queue →
-              </button>
-            </div>
-            <div className="queue-summary">{queueSummary}</div>
-            {queueStatus?.request ? (
-              <div className="queue-meta">
-                <StatPill
-                  label="Mode"
-                  value={queueStatus.request.criteria?.gameMode || '—'}
-                  variant="purple"
-                />
-                <StatPill
-                  label="Regions"
-                  value={(queueStatus.request.criteria?.regions || ['Global']).join(', ')}
-                  variant="blue"
-                />
-                <StatPill
-                  label="Players"
-                  value={`${queueStatus.request.criteria?.groupSize?.min || 1}-${
-                    queueStatus.request.criteria?.groupSize?.max || 5
-                  }`}
-                  variant="pink"
-                />
-              </div>
-            ) : null}
-            <p className="queue-note">
-              We will auto-redirect you to the lobby hub once a match is locked in.
-              {/* TODO: Trigger automatic lobby navigation when backend exposes match identifiers. */}
-            </p>
-          </section>
-
           <section className="surface surface--library">
             <div className="surface__header surface__header--stack">
               <div>
-                <h3>Search for a game</h3>
-                <p className="surface__subtitle">Browse the library and jump into a lobby when you are ready.</p>
+                <h3>Trending games</h3>
+                <p className="surface__subtitle">Tap into the hottest queues right now</p>
               </div>
-              <div className="search-box">
-                <input
-                  type="search"
-                  placeholder="League of Legends, Valorant, It Takes Two…"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
-                <span>{searching ? 'Searching…' : '🔍'}</span>
-              </div>
+              <button type="button" className="link" onClick={() => navigate('/matchmaking')}>
+                Open matchmaking →
+              </button>
             </div>
             {error ? <div className="page__error">{error}</div> : null}
-            <div className="surface__header">
-              <h4>Trending now</h4>
-              <span>{loadingTrending ? 'Loading…' : `${trending.length} games`}</span>
-            </div>
             <div className="game-grid">
-              {trending.map((game) => (
-                <GameCard
-                  key={game._id}
-                  game={game}
-                  onSelect={() => setActiveGame(game)}
-                  isActive={activeGame?._id === game._id}
-                  actionSlot={
-                    <button type="button" onClick={() => handleJoinMatch(game)}>
-                      Matchmake
-                    </button>
-                  }
-                />
-              ))}
-            </div>
-            {searchResults.length > 0 ? (
-              <>
-                <div className="surface__header">
-                  <h4>Search results</h4>
-                  <span>{searchResults.length} matches</span>
-                </div>
-                <div className="game-grid">
-                  {searchResults.map((game) => (
+              {loadingTrending
+                ? Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="game-card game-card--placeholder" />
+                  ))
+                : trending.map((game) => (
                     <GameCard
                       key={game._id}
                       game={game}
                       onSelect={() => setActiveGame(game)}
+                      isActive={activeGame?._id === game._id}
                       actionSlot={
                         <button type="button" onClick={() => handleJoinMatch(game)}>
-                          Queue up
+                          Matchmake
                         </button>
                       }
                     />
                   ))}
-                </div>
-              </>
-            ) : null}
+            </div>
             {activeGameMeta ? (
               <div className="surface surface--nested">
                 <div className="surface__header">
@@ -377,7 +309,7 @@ const HomePage = () => {
           <section className="surface surface--profile">
             <div className="surface__header">
               <h3>Personal overview</h3>
-              <span className="surface__subtitle">Tweak matchmaking preferences in your profile</span>
+              <span className="surface__subtitle">Tune your matchmaking defaults in your profile</span>
             </div>
             <div className="profile-overview">
               <div>
@@ -385,20 +317,14 @@ const HomePage = () => {
                 <strong>{user?.gamingPreferences?.competitiveness || 'Balanced'}</strong>
               </div>
               <div>
-                <span className="label">Regions</span>
+                <span className="label">Languages</span>
                 <strong>
-                  {(user?.gamingPreferences?.regions || ['Global'])
-                    .slice(0, 2)
-                    .join(', ')}
+                  {(user?.gamingPreferences?.languages || ['English']).slice(0, 2).join(', ')}
                 </strong>
               </div>
               <div>
-                <span className="label">Languages</span>
-                <strong>
-                  {(user?.gamingPreferences?.languages || ['English'])
-                    .slice(0, 2)
-                    .join(', ')}
-                </strong>
+                <span className="label">Favourite games</span>
+                <strong>{favouriteGames || 'Add in profile'}</strong>
               </div>
             </div>
             <button type="button" className="ghost-button" onClick={() => navigate('/profile')}>
@@ -406,11 +332,42 @@ const HomePage = () => {
             </button>
           </section>
 
+          <section className="surface surface--spotlight">
+            <div className="surface__header">
+              <h3>Game spotlights</h3>
+            </div>
+            <ul className="news-list">
+              {gameSpotlights.map((spotlight) => (
+                <li key={spotlight.id}>
+                  <strong>{spotlight.title}</strong>
+                  <p>{spotlight.description}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="surface surface--friends">
+            <div className="surface__header">
+              <h3>Friend spotlights</h3>
+              <button type="button" className="link" onClick={() => navigate('/friends')}>
+                Visit friends →
+              </button>
+            </div>
+            <ul className="news-list">
+              {friendSpotlights.map((spotlight) => (
+                <li key={spotlight.id}>
+                  <strong>{spotlight.title}</strong>
+                  <p>{spotlight.description}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section className="surface surface--friends">
             <div className="surface__header">
               <h3>Friend activity</h3>
-              <button type="button" className="link" onClick={() => navigate('/chat')}>
-                Open messages →
+              <button type="button" className="link" onClick={() => navigate('/friends')}>
+                Say hi →
               </button>
             </div>
             <ul className="friend-feed">
@@ -425,28 +382,6 @@ const HomePage = () => {
                     <p>{friend.status}</p>
                   </div>
                   <span className="timestamp">{friend.ago}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="surface surface--lobbies">
-            <div className="surface__header">
-              <h3>Quick lobbies</h3>
-              <span className="surface__subtitle">What your community is hosting</span>
-            </div>
-            <ul className="lobby-spotlight">
-              {lobbySpotlightMock.map((lobby) => (
-                <li key={lobby.id}>
-                  <div>
-                    <strong>{lobby.title}</strong>
-                    <p>
-                      {lobby.game} · {lobby.members}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => navigate('/lobbies')}>
-                    Join
-                  </button>
                 </li>
               ))}
             </ul>

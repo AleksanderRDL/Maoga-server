@@ -5,9 +5,9 @@ import HomePage from './pages/HomePage.jsx';
 import LobbiesPage from './pages/LobbiesPage.jsx';
 import LobbyDetailPage from './pages/LobbyDetailPage.jsx';
 import MatchmakingPage from './pages/MatchmakingPage.jsx';
-import ChatPage from './pages/ChatPage.jsx';
+import FriendsPage from './pages/FriendsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
-import NewsFeedPage from './pages/NewsFeedPage.jsx';
+import FeedPage from './pages/FeedPage.jsx';
 import DashboardLayout from './components/DashboardLayout.jsx';
 import SplashScreen from './components/SplashScreen.jsx';
 
@@ -51,11 +51,11 @@ const App = () => {
         }
       >
         <Route index element={<HomePage />} />
-        <Route path="news" element={<NewsFeedPage />} />
+        <Route path="matchmaking" element={<MatchmakingPage />} />
         <Route path="lobbies" element={<LobbiesPage />} />
         <Route path="lobbies/:lobbyId" element={<LobbyDetailPage />} />
-        <Route path="matchmaking" element={<MatchmakingPage />} />
-        <Route path="chat" element={<ChatPage />} />
+        <Route path="feed" element={<FeedPage />} />
+        <Route path="friends" element={<FriendsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

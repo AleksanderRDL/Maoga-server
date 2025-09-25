@@ -1,17 +1,16 @@
 import { NavLink } from 'react-router-dom';
 import { PiCompassFill } from 'react-icons/pi';
 import { RiTeamFill } from 'react-icons/ri';
-import { IoChatbubbleEllipses } from 'react-icons/io5';
 import { TbSwords } from 'react-icons/tb';
-import { FaUserAstronaut } from 'react-icons/fa';
+import { FaUserAstronaut, FaUserFriends } from 'react-icons/fa';
 import { MdOutlineNewspaper } from 'react-icons/md';
 
 const navItems = [
   { label: 'Home', icon: PiCompassFill, to: '/' },
-  { label: 'News', icon: MdOutlineNewspaper, to: '/news' },
+  { label: 'Matchmaking', icon: TbSwords, to: '/matchmaking' },
   { label: 'Lobbies', icon: RiTeamFill, to: '/lobbies' },
-  { label: 'Match', icon: TbSwords, to: '/matchmaking' },
-  { label: 'Chat', icon: IoChatbubbleEllipses, to: '/chat' },
+  { label: 'Feed', icon: MdOutlineNewspaper, to: '/feed' },
+  { label: 'Friends', icon: FaUserFriends, to: '/friends' },
   { label: 'Profile', icon: FaUserAstronaut, to: '/profile' }
 ];
 
