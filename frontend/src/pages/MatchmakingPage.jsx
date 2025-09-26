@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { FiArrowLeft, FiCheck, FiRefreshCw, FiSearch, FiStar } from 'react-icons/fi';
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import getGameArt from '../services/gameArt.js';
 
 const regionOptions = ['NA', 'EU', 'AS', 'SA', 'OC', 'AF', 'ANY'];
 const modeOptions = [
@@ -11,9 +13,34 @@ const modeOptions = [
   { value: 'custom', label: 'Custom' }
 ];
 
+const playerPreferenceOptions = [
+  { id: 'voice-chat', label: 'Voice chat' },
+  { id: 'competitive', label: 'Competitive' },
+  { id: 'verified', label: 'Verified' },
+  { id: 'crossplay', label: 'Crossplay' }
+];
+
+const languageOptions = ['English', 'Danish', 'German', 'Italian', 'Polish', 'Slovak', 'Spanish', 'Swedish', 'French'];
+
+const behaviourScoreOptions = ['+1000', '+3000', '+5000', '+7000', '+9000'];
+
+const extraFilterOptions = [
+  { id: 'crossplay-enabled', label: 'Crossplay Enabled' },
+  { id: 'weekends-only', label: 'Weekends only' },
+  { id: 'time-flexible', label: 'Time flexible' },
+  { id: 'quick-games', label: 'Quick games' },
+  { id: 'coach', label: 'Coach' },
+  { id: 'pc', label: 'PC' },
+  { id: 'console', label: 'Console' },
+  { id: 'mobile', label: 'Mobile' }
+];
+
+const AGE_MIN = 13;
+const AGE_MAX = 70;
+
 const formatDuration = (ms) => {
   if (!ms || Number.isNaN(ms)) {
-    return '—';
+    return '-';
   }
   const totalSeconds = Math.round(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -24,30 +51,47 @@ const formatDuration = (ms) => {
   return `${seconds}s`;
 };
 
+const findLabel = (collection, id) => collection.find((item) => item.id === id)?.label || id;
+
+const getModeLabel = (value) => modeOptions.find((option) => option.value === value)?.label || value;
+
 const MatchmakingPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const focusGame = location.state?.focusGame;
 
+  const [activeStep, setActiveStep] = useState(focusGame ? 'filters' : 'games');
   const [trending, setTrending] = useState([]);
-  const [selectedGames, setSelectedGames] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [selectedGames, setSelectedGames] = useState([]);
+  const [favoriteGameIds, setFavoriteGameIds] = useState([]);
   const [mode, setMode] = useState('casual');
   const [regions, setRegions] = useState(['ANY']);
-  const [languageInput, setLanguageInput] = useState('en');
+  const [selectedLanguages, setSelectedLanguages] = useState(['English']);
+  const [playerPreferences, setPlayerPreferences] = useState([]);
+  const [behaviourScore, setBehaviourScore] = useState(behaviourScoreOptions[0]);
+  const [extraFilters, setExtraFilters] = useState([]);
+  const [ageRange, setAgeRange] = useState({ min: 18, max: 32 });
   const [groupSize, setGroupSize] = useState({ min: 1, max: 5 });
   const [schedule, setSchedule] = useState('');
   const [feedback, setFeedback] = useState(null);
+  const [profileNotice, setProfileNotice] = useState(null);
   const [status, setStatus] = useState(null);
+  const [lockedProfile, setLockedProfile] = useState(null);
+  const [profileDirty, setProfileDirty] = useState(true);
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [initialFilters, setInitialFilters] = useState(null);
 
   useEffect(() => {
     if (!user) {
       return;
     }
+
     const prefs = user.gamingPreferences || {};
+
     if (prefs.competitiveness === 'competitive') {
       setMode('ranked');
     } else if (prefs.competitiveness === 'balanced') {
@@ -55,47 +99,150 @@ const MatchmakingPage = () => {
     } else if (prefs.competitiveness === 'casual') {
       setMode('casual');
     }
+
     if (Array.isArray(prefs.regions) && prefs.regions.length > 0) {
       setRegions(prefs.regions);
     }
+
     if (Array.isArray(prefs.languages) && prefs.languages.length > 0) {
-      setLanguageInput(prefs.languages.join(', '));
+      setSelectedLanguages(prefs.languages.slice(0, 5));
     }
+
     if (prefs.groupSize?.min || prefs.groupSize?.max) {
       setGroupSize({
         min: prefs.groupSize.min || 1,
         max: prefs.groupSize.max || Math.max(prefs.groupSize.min || 1, 5)
       });
     }
+
+    if (prefs.ageRange?.min || prefs.ageRange?.max) {
+      setAgeRange({
+        min: Math.max(AGE_MIN, prefs.ageRange.min || AGE_MIN),
+        max: Math.min(AGE_MAX, prefs.ageRange.max || AGE_MAX)
+      });
+    }
+
+    if (typeof prefs.behaviourScore === 'string' && behaviourScoreOptions.includes(prefs.behaviourScore)) {
+      setBehaviourScore(prefs.behaviourScore);
+    }
+
+    if (Array.isArray(prefs.playerPreferences)) {
+      setPlayerPreferences(prefs.playerPreferences);
+    }
+
+    if (Array.isArray(prefs.extraFilters)) {
+      setExtraFilters(prefs.extraFilters);
+    }
+
+    setInitialFilters({
+      mode: prefs.competitiveness === 'competitive' ? 'ranked' : prefs.competitiveness === 'balanced' ? 'competitive' : 'casual',
+      regions: Array.isArray(prefs.regions) && prefs.regions.length > 0 ? prefs.regions : ['ANY'],
+      selectedLanguages: Array.isArray(prefs.languages) && prefs.languages.length > 0 ? prefs.languages.slice(0, 5) : ['English'],
+      ageRange: prefs.ageRange?.min || prefs.ageRange?.max
+        ? {
+            min: Math.max(AGE_MIN, prefs.ageRange.min || AGE_MIN),
+            max: Math.min(AGE_MAX, prefs.ageRange.max || AGE_MAX)
+          }
+        : { min: 18, max: 32 },
+      behaviourScore:
+        typeof prefs.behaviourScore === 'string' && behaviourScoreOptions.includes(prefs.behaviourScore)
+          ? prefs.behaviourScore
+          : behaviourScoreOptions[0],
+      playerPreferences: Array.isArray(prefs.playerPreferences) ? prefs.playerPreferences : [],
+      extraFilters: Array.isArray(prefs.extraFilters) ? prefs.extraFilters : [],
+      groupSize: {
+        min: prefs.groupSize?.min || 1,
+        max: prefs.groupSize?.max || Math.max(prefs.groupSize?.min || 1, 5)
+      }
+    });
   }, [user]);
 
-  const addGame = useCallback(
-    (game) => {
-      setSelectedGames((prev) => {
-        if (prev.some((entry) => entry.game._id === game._id)) {
-          return prev;
-        }
-        return [...prev, { game, weight: 5 }];
-      });
-    },
-    [setSelectedGames]
-  );
+  const addGame = useCallback((game) => {
+    setSelectedGames((prev) => {
+      if (prev.some((entry) => entry.game._id === game._id)) {
+        return prev;
+      }
+      return [...prev, { game, weight: 5 }].slice(0, 5);
+    });
+  }, []);
 
-  const removeGame = (gameId) => {
+  const removeGame = useCallback((gameId) => {
     setSelectedGames((prev) => prev.filter((entry) => entry.game._id !== gameId));
-  };
+  }, []);
 
-  const updateWeight = (gameId, weight) => {
+  const updateWeight = useCallback((gameId, weight) => {
     setSelectedGames((prev) =>
       prev.map((entry) =>
         entry.game._id === gameId ? { ...entry, weight: Number(weight) } : entry
       )
     );
-  };
+  }, []);
+
+  const toggleGameSelection = useCallback(
+    (game) => {
+      setSelectedGames((prev) => {
+        if (prev.some((entry) => entry.game._id === game._id)) {
+          return prev.filter((entry) => entry.game._id !== game._id);
+        }
+        if (prev.length >= 5) {
+          return prev;
+        }
+        return [...prev, { game, weight: 5 }];
+      });
+    },
+    []
+  );
+
+  const toggleFavorite = useCallback((gameId) => {
+    setFavoriteGameIds((prev) =>
+      prev.includes(gameId) ? prev.filter((id) => id !== gameId) : [...prev, gameId]
+    );
+  }, []);
+
+  const togglePreference = useCallback((id) => {
+    setPlayerPreferences((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }, []);
+
+  const toggleLanguage = useCallback((language) => {
+    setSelectedLanguages((prev) => {
+      if (prev.includes(language)) {
+        if (prev.length === 1) {
+          return prev;
+        }
+        return prev.filter((item) => item !== language);
+      }
+      if (prev.length >= 5) {
+        return prev;
+      }
+      return [...prev, language];
+    });
+  }, []);
+
+  const toggleExtraFilter = useCallback((id) => {
+    setExtraFilters((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }, []);
+
+  const toggleRegion = useCallback((region) => {
+    setRegions((prev) => {
+      if (region === 'ANY') {
+        return ['ANY'];
+      }
+      const withoutAny = prev.filter((item) => item !== 'ANY');
+      if (withoutAny.includes(region)) {
+        const next = withoutAny.filter((item) => item !== region);
+        return next.length > 0 ? next : ['ANY'];
+      }
+      return [...withoutAny, region];
+    });
+  }, []);
 
   const fetchTrending = useCallback(async () => {
     try {
-      const response = await apiClient.get('/games/trending', { params: { limit: 9 } });
+      const response = await apiClient.get('/games/trending', { params: { limit: 12 } });
       const games = response.data?.data?.games || [];
       setTrending(games);
       if (focusGame) {
@@ -103,8 +250,10 @@ const MatchmakingPage = () => {
           const match = games.find((game) => game._id === focusGame._id);
           if (match) {
             addGame(match);
+            setActiveStep('filters');
           } else {
             addGame(focusGame);
+            setActiveStep('filters');
           }
         } else if (focusGame.name) {
           setSearchQuery(focusGame.name);
@@ -128,7 +277,7 @@ const MatchmakingPage = () => {
     const timeout = setTimeout(async () => {
       try {
         const response = await apiClient.get('/games', {
-          params: { q: searchQuery, limit: 10 }
+          params: { q: searchQuery, limit: 12 }
         });
         setSearchResults(response.data?.data?.games || []);
       } catch (err) {
@@ -158,9 +307,14 @@ const MatchmakingPage = () => {
   const submitRequest = async (event) => {
     event.preventDefault();
     if (selectedGames.length === 0) {
-      setFeedback('Select at least one game.');
+      setFeedback('Select at least one game to start matchmaking.');
       return;
     }
+    if (!lockedProfile || profileDirty) {
+      setProfileNotice('Save your search profile before starting the search.');
+      return;
+    }
+
     setLoading(true);
     setFeedback(null);
     try {
@@ -168,10 +322,11 @@ const MatchmakingPage = () => {
         games: selectedGames.map((entry) => ({ gameId: entry.game._id, weight: entry.weight })),
         gameMode: mode,
         regions,
-        languages: languageInput.split(',').map((lang) => lang.trim()).filter(Boolean),
+        languages: selectedLanguages,
         groupSize,
         scheduledTime: schedule ? new Date(schedule).toISOString() : undefined
       };
+
       await apiClient.post('/matchmaking', payload);
       setFeedback('Matchmaking request submitted!');
       fetchStatus();
@@ -198,6 +353,53 @@ const MatchmakingPage = () => {
     }
   };
 
+  useEffect(() => {
+    setProfileDirty(true);
+  }, [selectedGames, playerPreferences, selectedLanguages, behaviourScore, extraFilters, ageRange, regions, mode, groupSize, schedule]);
+
+  const handleSaveProfile = () => {
+    setLockedProfile({
+      games: selectedGames.map((entry) => ({ gameId: entry.game._id, weight: entry.weight })),
+      playerPreferences,
+      behaviourScore,
+      extraFilters,
+      ageRange,
+      regions,
+      mode,
+      languages: selectedLanguages,
+      groupSize,
+      schedule
+    });
+    setProfileDirty(false);
+    setProfileNotice('Search profile saved and locked for this queue.');
+  };
+
+  const handleResetProfile = () => {
+    if (initialFilters) {
+      setMode(initialFilters.mode);
+      setRegions(initialFilters.regions);
+      setSelectedLanguages(initialFilters.selectedLanguages);
+      setAgeRange(initialFilters.ageRange);
+      setBehaviourScore(initialFilters.behaviourScore);
+      setPlayerPreferences(initialFilters.playerPreferences);
+      setExtraFilters(initialFilters.extraFilters);
+      setGroupSize(initialFilters.groupSize);
+    } else {
+      setMode('casual');
+      setRegions(['ANY']);
+      setSelectedLanguages(['English']);
+      setAgeRange({ min: 18, max: 32 });
+      setBehaviourScore(behaviourScoreOptions[0]);
+      setPlayerPreferences([]);
+      setExtraFilters([]);
+      setGroupSize({ min: 1, max: 5 });
+    }
+    setSchedule('');
+    setLockedProfile(null);
+    setProfileDirty(true);
+    setProfileNotice('Filters reset to your defaults.');
+  };
+
   const statusSummary = useMemo(() => {
     if (!status) {
       return 'No active matchmaking request.';
@@ -216,160 +418,273 @@ const MatchmakingPage = () => {
 
   const availableGames = searchResults.length > 0 ? searchResults : trending;
 
-  return (
-    <div className="page page--matchmaking">
-      <section className="section">
-        <div className="section__header">
-          <h3>Matchmaking</h3>
-          <button type="button" className="link" onClick={fetchStatus} disabled={checkingStatus}>
-            {checkingStatus ? 'Checking…' : 'Refresh status'}
-          </button>
-        </div>
-        {feedback ? <div className="page__feedback">{feedback}</div> : null}
+  const sortedAvailableGames = useMemo(() => {
+    if (favoriteGameIds.length === 0) {
+      return availableGames;
+    }
+    return [...availableGames].sort((a, b) => {
+      const aFav = favoriteGameIds.includes(a._id);
+      const bFav = favoriteGameIds.includes(b._id);
+      if (aFav && !bFav) {
+        return -1;
+      }
+      if (bFav && !aFav) {
+        return 1;
+      }
+      return 0;
+    });
+  }, [availableGames, favoriteGameIds]);
+
+  const identity = useMemo(() => {
+    const primaryName = user?.profile?.displayName?.trim() || user?.username || 'You';
+    const initials = primaryName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'U';
+    return {
+      name: primaryName,
+      handle: user?.username ? `@${user.username}` : '',
+      initials
+    };
+  }, [user]);
+
+  const previewChips = useMemo(() => {
+    const chips = [];
+    playerPreferenceOptions.forEach((option) => {
+      if (playerPreferences.includes(option.id)) {
+        chips.push(option.label);
+      }
+    });
+    chips.push(`${getModeLabel(mode)} mode`);
+    chips.push(`Age ${ageRange.min}-${ageRange.max}`);
+    if (selectedLanguages.length > 0) {
+      const [firstLanguage, ...restLanguages] = selectedLanguages;
+      chips.push(
+        restLanguages.length > 0 ? `${firstLanguage} +${restLanguages.length}` : firstLanguage
+      );
+    }
+    chips.push(`Group ${groupSize.min}-${groupSize.max}`);
+    chips.push(`Behaviour ${behaviourScore}`);
+    if (regions.includes('ANY')) {
+      chips.push('Any region');
+    } else if (regions.length > 0) {
+      chips.push(`Regions ${regions.join(', ')}`);
+    }
+    extraFilters.forEach((filterId) => {
+      chips.push(findLabel(extraFilterOptions, filterId));
+    });
+    return chips;
+  }, [playerPreferences, mode, ageRange, selectedLanguages, groupSize, behaviourScore, regions, extraFilters]);
+
+  const renderStatusCard = () => (
+    <div className={`matchmaking-status-card ${hasActiveRequest ? 'matchmaking-status-card--active' : ''}`}>
+      <div className="matchmaking-status-card__copy">
+        <span className="matchmaking-status-card__label">
+          {hasActiveRequest ? 'Active search' : 'Status'}
+        </span>
+        <p>{statusSummary}</p>
+      </div>
+      <div className="matchmaking-status-card__actions">
         {hasActiveRequest ? (
-          <div className="matchmaking-status">
-            <div>
-              <strong>Active search</strong>
-              <p>{statusSummary}</p>
-            </div>
-            <div className="matchmaking-status__meta">
-              <span>
-                Mode: <strong>{status?.request?.criteria?.gameMode || '—'}</strong>
-              </span>
-              <span>
-                Regions: <strong>{(status?.request?.criteria?.regions || []).join(', ') || 'Global'}</strong>
-              </span>
-              <span>
-                Group size: <strong>{`${status?.request?.criteria?.groupSize?.min || 1}-${
-                  status?.request?.criteria?.groupSize?.max || 5
-                }`}</strong>
-              </span>
-            </div>
-            <button type="button" className="danger-button" onClick={cancelRequest}>
-              Cancel search
-            </button>
-          </div>
+          <button type="button" className="danger-button" onClick={cancelRequest}>
+            Cancel search
+          </button>
         ) : (
-          <p className="status-summary">{statusSummary}</p>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={fetchStatus}
+            disabled={checkingStatus}
+          >
+            <FiRefreshCw size={16} />
+            {checkingStatus ? ' Checking…' : ' Refresh status'}
+          </button>
         )}
-      </section>
+      </div>
+    </div>
+  );
 
-      <form className="section matchmaking-form" onSubmit={submitRequest}>
-        <div className="section__header">
-          <h3>Choose your games</h3>
+  const renderGameSelection = () => (
+    <div className="matchmaking-stage">
+      <div className="matchmaking-stage__header">
+        <div className="matchmaking-search">
+          <FiSearch size={18} />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search for a game"
+          />
         </div>
-        <div className="game-selection">
-          <div className="game-selection__panel">
-            <label>
-              <span>Search games</span>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Type to search"
-              />
-            </label>
-            <div className="game-selection__list">
-              {availableGames.map((game) => {
-                const isSelected = selectedGames.some((entry) => entry.game._id === game._id);
-                return (
-                  <button
-                    type="button"
-                    key={game._id}
-                    className={`game-selection__item ${isSelected ? 'game-selection__item--active' : ''}`}
-                    onClick={() => addGame(game)}
-                  >
-                    <strong>{game.name}</strong>
-                    <span>{game.gameModes?.[0]?.name || game.genres?.[0]?.name || 'Mode TBD'}</span>
-                  </button>
-                );
-              })}
-              {availableGames.length === 0 ? (
-                <p className="surface__subtitle">No games found. Try a different search.</p>
+        <button type="button" className="ghost-button" onClick={() => navigate(-1)}>
+          <FiArrowLeft size={16} /> Back
+        </button>
+      </div>
+      {renderStatusCard()}
+      <div className="game-gallery">
+        {sortedAvailableGames.map((game) => {
+          const isSelected = selectedGames.some((entry) => entry.game._id === game._id);
+          const isFavorite = favoriteGameIds.includes(game._id);
+          const art = getGameArt(game);
+          return (
+            <button
+              type="button"
+              key={game._id}
+              className={`game-tile ${isSelected ? 'game-tile--active' : ''}`}
+              onClick={() => toggleGameSelection(game)}
+            >
+              <span
+                className={`game-tile__favorite ${isFavorite ? 'game-tile__favorite--active' : ''}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleFavorite(game._id);
+                }}
+              >
+                <FiStar size={16} />
+              </span>
+              {isSelected ? (
+                <span className="game-tile__check">
+                  <FiCheck size={16} />
+                </span>
               ) : null}
+              <div className="game-tile__media">
+                <img src={art} alt={game.name} loading="lazy" />
+              </div>
+              <div className="game-tile__body">
+                <strong>{game.name}</strong>
+                <span>{game.gameModes?.[0]?.name || game.genres?.[0]?.name || 'Mode TBD'}</span>
+              </div>
+            </button>
+          );
+        })}
+        {sortedAvailableGames.length === 0 ? (
+          <div className="game-gallery__empty">No games found. Try a different search.</div>
+        ) : null}
+      </div>
+      <div className="matchmaking-stage__footer">
+        <div className="matchmaking-stage__hint">
+          {selectedGames.length > 0
+            ? `${selectedGames.length} game${selectedGames.length > 1 ? 's' : ''} selected`
+            : 'Pick a game to continue'}
+        </div>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => setActiveStep('filters')}
+          disabled={selectedGames.length === 0}
+        >
+          Choose filters
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderFilters = () => (
+    <form className="matchmaking-stage matchmaking-stage--filters" onSubmit={submitRequest}>
+      <div className="matchmaking-stage__header">
+        <button type="button" className="ghost-button" onClick={() => setActiveStep('games')}>
+          <FiArrowLeft size={16} /> Games
+        </button>
+        <div className="matchmaking-stage__heading">
+          <h2>Choose filters</h2>
+          <p>Lock in your search profile before you queue.</p>
+        </div>
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={fetchStatus}
+          disabled={checkingStatus}
+        >
+          <FiRefreshCw size={16} />
+          {checkingStatus ? ' Checking…' : ' Refresh status'}
+        </button>
+      </div>
+      {feedback ? <div className="page__feedback page__feedback--floating">{feedback}</div> : null}
+      {profileNotice ? <div className="matchmaking-inline-notice">{profileNotice}</div> : null}
+      {renderStatusCard()}
+      <div className="filters-grid">
+        <div className="filter-card">
+          <div className="filter-card__heading">
+            <h3>Player preferences</h3>
+            <span>Dial in who you want to queue with.</span>
+          </div>
+          <div className="age-range">
+            <div className="age-range__labels">
+              <span>{ageRange.min}</span>
+              <span>{ageRange.max}</span>
+            </div>
+            <div className="age-range__slider">
+              <input
+                type="range"
+                min={AGE_MIN}
+                max={Math.max(AGE_MIN, ageRange.max - 1)}
+                value={ageRange.min}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setAgeRange((prev) => ({ min: Math.min(value, prev.max - 1), max: prev.max }));
+                }}
+              />
+              <input
+                type="range"
+                min={Math.min(AGE_MAX, ageRange.min + 1)}
+                max={AGE_MAX}
+                value={ageRange.max}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setAgeRange((prev) => ({ min: prev.min, max: Math.max(value, prev.min + 1) }));
+                }}
+              />
             </div>
           </div>
-          <div className="game-selection__panel">
-            <h4>Selected</h4>
-            {selectedGames.length === 0 ? <p>No games selected yet.</p> : null}
-            <ul className="selected-games">
-              {selectedGames.map((entry) => (
-                <li key={entry.game._id}>
-                  <div>
-                    <strong>{entry.game.name}</strong>
-                    <span>{entry.game.gameModes?.[0]?.name}</span>
-                  </div>
-                  <div className="selected-games__controls">
-                    <label>
-                      Weight
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        value={entry.weight}
-                        onChange={(event) => updateWeight(entry.game._id, event.target.value)}
-                      />
-                    </label>
-                    <span>{entry.weight}</span>
-                    <button type="button" onClick={() => removeGame(entry.game._id)}>
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <div className="chip-row">
+            {playerPreferenceOptions.map((option) => {
+              const active = playerPreferences.includes(option.id);
+              return (
+                <button
+                  type="button"
+                  key={option.id}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => togglePreference(option.id)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
-        </div>
-
-        <div className="section__header">
-          <h3>Tune your search</h3>
-        </div>
-        <div className="matchmaking-grid">
-          <label>
-            <span>Game mode</span>
-            <select value={mode} onChange={(event) => setMode(event.target.value)}>
+          <div className="chip-row chip-row--wrap">
+            {regionOptions.map((region) => {
+              const active = regions.includes(region);
+              return (
+                <button
+                  type="button"
+                  key={region}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => toggleRegion(region)}
+                >
+                  {region}
+                </button>
+              );
+            })}
+          </div>
+          <div className="filter-card__field">
+            <label htmlFor="matchmaking-mode">Game mode</label>
+            <select
+              id="matchmaking-mode"
+              value={mode}
+              onChange={(event) => setMode(event.target.value)}
+            >
               {modeOptions.map((option) => (
                 <option value={option.value} key={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            <span>Regions</span>
-            <div className="pill-group">
-              {regionOptions.map((region) => {
-                const active = regions.includes(region);
-                return (
-                  <button
-                    type="button"
-                    key={region}
-                    className={`pill ${active ? 'pill--active' : ''}`}
-                    onClick={() =>
-                      setRegions((prev) =>
-                        prev.includes(region)
-                          ? prev.filter((item) => item !== region)
-                          : [...prev, region]
-                      )
-                    }
-                  >
-                    {region}
-                  </button>
-                );
-              })}
-            </div>
-          </label>
-          <label>
-            <span>Languages (comma separated)</span>
-            <input
-              type="text"
-              value={languageInput}
-              onChange={(event) => setLanguageInput(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Group size</span>
-            <div className="group-size">
+          </div>
+          <div className="filter-card__field">
+            <label>Group size</label>
+            <div className="group-size group-size--compact">
               <input
                 type="number"
                 min="1"
@@ -390,21 +705,200 @@ const MatchmakingPage = () => {
                 }
               />
             </div>
-          </label>
-          <label>
-            <span>Scheduled time (optional)</span>
-            <input
-              type="datetime-local"
-              value={schedule}
-              onChange={(event) => setSchedule(event.target.value)}
-            />
-          </label>
+          </div>
         </div>
 
-        <button type="submit" className="primary-button primary-button--lg" disabled={loading}>
-          {loading ? 'Submitting…' : 'Start matchmaking'}
+        <div className="filter-card">
+          <div className="filter-card__heading">
+            <h3>Languages</h3>
+            <span>Pick up to five languages.</span>
+          </div>
+          <div className="chip-row chip-row--wrap">
+            {languageOptions.map((language) => {
+              const active = selectedLanguages.includes(language);
+              const disable = active && selectedLanguages.length === 1;
+              return (
+                <button
+                  type="button"
+                  key={language}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => (!disable ? toggleLanguage(language) : undefined)}
+                  disabled={disable}
+                >
+                  {language}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="filter-card">
+          <div className="filter-card__heading">
+            <h3>Behaviour score</h3>
+            <span>Keep things friendly.</span>
+          </div>
+          <div className="chip-row">
+            {behaviourScoreOptions.map((score) => {
+              const active = behaviourScore === score;
+              return (
+                <button
+                  type="button"
+                  key={score}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => setBehaviourScore(score)}
+                >
+                  {score}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="filter-card">
+          <div className="filter-card__heading">
+            <h3>Extra filters</h3>
+            <span>Fine-tune your vibe.</span>
+          </div>
+          <div className="chip-row chip-row--wrap">
+            {extraFilterOptions.map((option) => {
+              const active = extraFilters.includes(option.id);
+              return (
+                <button
+                  type="button"
+                  key={option.id}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => toggleExtraFilter(option.id)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="filter-card filter-card--profile">
+          <div className="filter-card__heading">
+            <h3>Search profile</h3>
+            <span>This is what other players will see.</span>
+          </div>
+          <div className="search-preview">
+            <div className="search-preview__header">
+              <div className="search-preview__avatar">{identity.initials}</div>
+              <div className="search-preview__title">
+                <strong>{identity.name}</strong>
+                {identity.handle ? <span>{identity.handle}</span> : null}
+              </div>
+              <span className="search-preview__status">
+                <span className="dot dot--online" />
+                {hasActiveRequest ? 'In queue' : 'Ready'}
+              </span>
+            </div>
+            <div className="search-preview__chips">
+              {previewChips.length > 0 ? (
+                previewChips.map((chip) => (
+                  <span key={chip} className="chip chip--ghost">
+                    {chip}
+                  </span>
+                ))
+              ) : (
+                <span className="surface__subtitle">Add filters to build your profile.</span>
+              )}
+            </div>
+            <div className="search-preview__games">
+              {selectedGames.length > 0 ? (
+                selectedGames.map((entry) => (
+                  <div key={entry.game._id} className="search-preview__game">
+                    <div className="search-preview__game-info">
+                      <img src={getGameArt(entry.game)} alt={entry.game.name} loading="lazy" />
+                      <div>
+                        <span>{entry.game.name}</span>
+                        <small>{entry.game.gameModes?.[0]?.name || 'Mode TBD'}</small>
+                      </div>
+                    </div>
+                    <div className="search-preview__weight">
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={entry.weight}
+                        onChange={(event) => updateWeight(entry.game._id, event.target.value)}
+                      />
+                      <span>{entry.weight}</span>
+                    </div>
+                    <button type="button" className="ghost-button" onClick={() => removeGame(entry.game._id)}>
+                      Remove
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <span className="surface__subtitle">Select at least one game to build a profile.</span>
+              )}
+            </div>
+            <div className="search-preview__schedule">
+              <label htmlFor="matchmaking-schedule">Scheduled time (optional)</label>
+              <input
+                id="matchmaking-schedule"
+                type="datetime-local"
+                value={schedule}
+                onChange={(event) => setSchedule(event.target.value)}
+              />
+            </div>
+            <div className="search-preview__actions">
+              <button type="button" className="ghost-button" onClick={handleResetProfile}>
+                Reset
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={handleSaveProfile}
+                disabled={selectedGames.length === 0}
+              >
+                Save profile
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="matchmaking-stage__footer">
+        <div className="matchmaking-stage__hint">
+          {lockedProfile && !profileDirty
+            ? 'Profile locked. Ready when you are!'
+            : 'Save your profile before starting the search.'}
+        </div>
+        <button
+          type="submit"
+          className="primary-button primary-button--lg"
+          disabled={loading || selectedGames.length === 0 || profileDirty}
+        >
+          {loading ? 'Submitting…' : 'Start search'}
         </button>
-      </form>
+      </div>
+    </form>
+  );
+
+  return (
+    <div className="matchmaking-screen">
+      <div className="matchmaking-topline">
+        <div className="matchmaking-topline__stat">
+          <span className="matchmaking-topline__icon">*</span>
+          <span>{user?.virtualCurrency ?? 0}</span>
+        </div>
+        <div className="matchmaking-topline__progress">
+          <span>{activeStep === 'games' ? 'Step 1 of 2' : 'Step 2 of 2'}</span>
+          <div className="matchmaking-topline__bar">
+            <span className={activeStep === 'filters' ? 'is-complete' : ''} />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="matchmaking-topline__back"
+          onClick={() => (activeStep === 'filters' ? setActiveStep('games') : navigate(-1))}
+        >
+          <FiArrowLeft size={18} />
+        </button>
+      </div>
+
+      {activeStep === 'games' ? renderGameSelection() : renderFilters()}
     </div>
   );
 };
