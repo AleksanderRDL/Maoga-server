@@ -49,7 +49,7 @@ describe('Socket.IO Matchmaking Events', () => {
     await User.deleteMany({});
     await Game.deleteMany({});
     await MatchRequest.deleteMany({});
-    if (queueManager.clearQueues) queueManager.clearQueues();
+    if (queueManager.clearQueues) await queueManager.clearQueues();
     if (socketManager.userSockets && typeof socketManager.userSockets.clear === 'function') {
       socketManager.userSockets.clear();
     }

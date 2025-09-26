@@ -30,7 +30,7 @@ describe('Matchmaking API', () => {
     await MatchHistory.deleteMany({});
 
     // Clear queues
-    queueManager.clearQueues();
+    await queueManager.clearQueues();
 
     // Create test game
     testGame = await Game.create(testGames[0]);
@@ -107,7 +107,7 @@ describe('Matchmaking API', () => {
       expect(res.body.data.matchRequest.criteria.games).to.have.lengthOf(1);
 
       // Verify request is in queue
-      const queueInfo = queueManager.getUserRequest(user1.id);
+      const queueInfo = await queueManager.getUserRequest(user1.id);
       expect(queueInfo).to.exist;
       expect(queueInfo.gameId).to.equal(testGame._id.toString());
     });
@@ -226,8 +226,8 @@ describe('Matchmaking API', () => {
       expect(res.body.data.matchRequest.status).to.equal('cancelled');
 
       // Verify removed from queue
-      const queueInfo = queueManager.getUserRequest(user1.id);
-      expect(queueInfo).to.be.undefined;
+      const queueInfo = await queueManager.getUserRequest(user1.id);
+      expect(queueInfo).to.be.null;
     });
 
     it('should not allow cancelling other users requests', async () => {

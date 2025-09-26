@@ -80,6 +80,7 @@ const baseConfig = {
     password: process.env.REDIS_PASSWORD,
     db: parseInt(process.env.REDIS_DB, 10) || 0,
     keyPrefix: process.env.REDIS_KEY_PREFIX || 'maoga',
+    allowMockFallback: parseBoolean(process.env.REDIS_ALLOW_MOCK_FALLBACK, env !== 'production'),
     lockTTL: parseInt(process.env.REDIS_LOCK_TTL_MS, 10) || 5000,
     requestLockTtl: parseInt(process.env.MATCH_REQUEST_LOCK_TTL_MS, 10) || 15 * 60 * 1000
   },

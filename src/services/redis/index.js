@@ -3,6 +3,16 @@ const RedisMock = require('ioredis-mock');
 const config = require('../../config');
 const logger = require('../../utils/logger').forModule('redis:manager');
 
+const FALLBACK_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'EHOSTUNREACH'
+]);
+
 class RedisManager {
   constructor() {
     this.client = null;
@@ -10,57 +20,157 @@ class RedisManager {
     this.isMock = false;
   }
 
-
   async connect() {
     if (this.connectionPromise) {
       return await this.connectionPromise;
     }
 
-    const establishConnection = async () => {
-      if (this.client) {
-        const status = this.client.status;
-        const isReady = status && ['connecting', 'connect', 'ready'].includes(status);
-        if (isReady) {
-          return this.client;
+    this.connectionPromise = (async () => {
+      try {
+        return await this._establishConnection();
+      } catch (error) {
+        this.connectionPromise = null;
+        if (!this.isMock) {
+          this.client = null;
         }
-
-        if (!this.isMock && typeof this.client.connect === 'function') {
-          try {
-            await this.client.connect();
-          } catch (error) {
-            if (/already connecting/i.test(error.message || '')) {
-              return this.client;
-            }
-            throw error;
-          }
-        }
-        return this.client;
+        logger.error('Failed to establish Redis connection', { error: error.message });
+        throw error;
       }
-
-      const { client, isMock } = this._createClient();
-      this.client = client;
-      this.isMock = isMock;
-      this._attachEventHandlers(client);
-
-      if (!isMock && typeof client.connect === 'function') {
-        await client.connect();
-      }
-
-      return client;
-    };
-
-    this.connectionPromise = establishConnection().catch((error) => {
-      this.connectionPromise = null;
-      this.client = null;
-      logger.error('Failed to establish Redis connection', { error: error.message });
-      throw error;
-    });
+    })();
 
     return await this.connectionPromise;
   }
 
+  async _establishConnection() {
+    if (this.client) {
+      const status = this.client.status;
+      const isReady = status && ['connecting', 'connect', 'ready'].includes(status);
+      if (isReady || this.isMock) {
+        return this.client;
+      }
 
+      if (!this.isMock && typeof this.client.connect === 'function') {
+        try {
+          await this.client.connect();
+        } catch (error) {
+          if (/already connecting/i.test(error.message || '')) {
+            return this.client;
+          }
+          const fallbackClient = await this._handleInitialConnectError(this.client, error);
+          if (fallbackClient) {
+            return fallbackClient;
+          }
+          throw error;
+        }
+      }
 
+      return this.client;
+    }
+
+    const { client, isMock } = this._createClient();
+    this.client = client;
+    this.isMock = isMock;
+    this._attachEventHandlers(client);
+
+    if (!isMock && typeof client.connect === 'function') {
+      try {
+        await client.connect();
+      } catch (error) {
+        if (/already connecting/i.test(error.message || '')) {
+          return this.client;
+        }
+        const fallbackClient = await this._handleInitialConnectError(client, error);
+        if (fallbackClient) {
+          return fallbackClient;
+        }
+        throw error;
+      }
+    }
+
+    return this.client;
+  }
+
+  async _handleInitialConnectError(failedClient, error) {
+    if (!this._shouldFallbackToMock(error)) {
+      return null;
+    }
+
+    logger.warn('Redis connection failed, falling back to in-memory mock', {
+      error: error.message,
+      code: error.code,
+      target: config.redis?.url || `${config.redis?.host}:${config.redis?.port}`
+    });
+
+    await this._cleanupFailedClient(failedClient);
+
+    const mockClient = this._createMockClient();
+    this._attachEventHandlers(mockClient);
+    this.client = mockClient;
+    this.isMock = true;
+    return mockClient;
+  }
+
+  async _cleanupFailedClient(client) {
+    if (!client) {
+      return;
+    }
+
+    try {
+      if (typeof client.removeAllListeners === 'function') {
+        client.removeAllListeners();
+      }
+      if (typeof client.disconnect === 'function') {
+        client.disconnect(false);
+      } else if (typeof client.quit === 'function') {
+        await client.quit();
+      }
+    } catch (cleanupError) {
+      logger.debug('Failed to clean up Redis client after connection failure', {
+        error: cleanupError.message
+      });
+    }
+  }
+
+  _createMockClient() {
+    return new RedisMock();
+  }
+
+  _shouldFallbackToMock(error) {
+    if (this.isMock) {
+      return false;
+    }
+
+    if (!config.redis?.allowMockFallback) {
+      return false;
+    }
+
+    const code = error?.code;
+    if (code && FALLBACK_ERROR_CODES.has(code)) {
+      return true;
+    }
+
+    const errno = typeof error?.errno === 'string' ? error.errno : undefined;
+    if (errno && FALLBACK_ERROR_CODES.has(errno)) {
+      return true;
+    }
+
+    const message = (error?.message || '').toLowerCase();
+    const fallbackMessageFragments = [
+      'connection is closed',
+      'connection refused',
+      'connect econnrefused',
+      'failed to connect',
+      'socket closed',
+      'timed out',
+      'getaddrinfo',
+      'unreachable'
+    ];
+    if (fallbackMessageFragments.some((fragment) => message.includes(fragment))) {
+      return true;
+    }
+
+    return /connect(?:ion)? (?:refused|timed out|reset)/.test(message);
+  }
 
   getClient() {
     if (!this.client) {
@@ -96,7 +206,7 @@ class RedisManager {
     const shouldUseMock = this._shouldUseMock();
     if (shouldUseMock) {
       logger.warn('Using in-memory Redis mock (ioredis-mock). This should only occur in tests.');
-      return { client: new RedisMock(), isMock: true };
+      return { client: this._createMockClient(), isMock: true };
     }
 
     const options = this._buildOptions();
@@ -175,10 +285,4 @@ class RedisManager {
 }
 
 module.exports = new RedisManager();
-
-
-
-
-
-
 

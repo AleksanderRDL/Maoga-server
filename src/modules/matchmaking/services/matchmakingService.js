@@ -36,15 +36,17 @@ class MatchmakingService {
   }
 
 
-async submitMatchRequest(userId, criteria) {
-  const session = await MatchRequest.startSession();
-  let matchRequest;
+  async submitMatchRequest(userId, criteria) {
+    const runPersistence = async (session) => {
+      const sessionOptions = session ? { session } : {};
 
-  try {
-    await session.withTransaction(async () => {
       logger.debug(`Attempting to submit match request for userId: ${userId}`, { criteria });
 
-      const existingRequest = await MatchRequest.findActiveByUser(userId).session(session);
+      const existingRequestQuery = MatchRequest.findActiveByUser(userId);
+      if (session) {
+        existingRequestQuery.session(session);
+      }
+      const existingRequest = await existingRequestQuery;
       if (existingRequest) {
         logger.warn(
           `User ${userId} already has an active matchmaking request: ${existingRequest._id}`
@@ -52,7 +54,11 @@ async submitMatchRequest(userId, criteria) {
         throw new ConflictError('User already has an active matchmaking request');
       }
 
-      const user = await User.findById(userId).session(session);
+      const userQuery = User.findById(userId);
+      if (session) {
+        userQuery.session(session);
+      }
+      const user = await userQuery;
       if (!user || user.status !== 'active') {
         logger.warn(
           `User ${userId} is not eligible for matchmaking (status: ${user ? user.status : 'not found'})`
@@ -65,7 +71,11 @@ async submitMatchRequest(userId, criteria) {
       }
 
       const gameIds = criteria.games.map((g) => g.gameId);
-      const games = await Game.find({ _id: { $in: gameIds } }).session(session);
+      const gameQuery = Game.find({ _id: { $in: gameIds } });
+      if (session) {
+        gameQuery.session(session);
+      }
+      const games = await gameQuery;
       if (games.length !== gameIds.length) {
         const foundGameIds = games.map((g) => g._id.toString());
         const missingGameIds = gameIds.filter((id) => !foundGameIds.includes(id));
@@ -77,7 +87,7 @@ async submitMatchRequest(userId, criteria) {
         throw new BadRequestError(`Invalid game IDs: ${missingGameIds.join(', ')}`);
       }
 
-      matchRequest = new MatchRequest({
+      const matchRequest = new MatchRequest({
         userId,
         criteria: {
           ...criteria,
@@ -86,48 +96,94 @@ async submitMatchRequest(userId, criteria) {
         }
       });
 
-      await matchRequest.save({ session });
+      await matchRequest.save(sessionOptions);
       logger.info('Match request saved to DB', { requestId: matchRequest._id, userId });
-    });
-  } catch (error) {
-    logger.error('Failed to persist match request transaction', {
-      errorName: error.name,
-      errorMessage: error.message,
-      userId
-    });
-    if (error && error.code === 11000) {
-      throw new ConflictError('User already has an active matchmaking request');
+      return matchRequest;
+    };
+
+    const transactionsSupported = supportsTransactions();
+    let session = null;
+    let matchRequest;
+
+    if (transactionsSupported) {
+      session = await MatchRequest.startSession();
     }
-    throw error;
-  } finally {
-    await session.endSession();
-  }
 
-  try {
-    await queueManager.addRequest(matchRequest);
-  } catch (error) {
-    logger.error('Failed to add request to queue after DB persistence', {
-      errorName: error.name,
-      errorMessage: error.message,
-      requestId: matchRequest?._id,
-      userId
+    let usedTransactionFallback = false;
+
+    try {
+      if (session) {
+        await session.withTransaction(async () => {
+          matchRequest = await runPersistence(session);
+        });
+      } else {
+        matchRequest = await runPersistence(null);
+      }
+    } catch (error) {
+      if (error && error.code === 11000) {
+        logger.warn('Duplicate active matchmaking request detected during submission', {
+          userId,
+          errorCode: error.code
+        });
+        throw new ConflictError('User already has an active matchmaking request');
+      }
+
+      if (session && isTransactionNotSupportedError(error)) {
+        usedTransactionFallback = true;
+        logger.warn('MongoDB topology lacks transaction support; retrying match request persistence without session', {
+          userId,
+          errorMessage: error.message
+        });
+        await session.endSession().catch(() => {});
+        session = null;
+        matchRequest = await runPersistence(null);
+      } else {
+        logger.error('Failed to persist match request transaction', {
+          errorName: error.name,
+          errorMessage: error.message,
+          userId
+        });
+        throw error;
+      }
+    } finally {
+      if (session) {
+        await session.endSession().catch(() => {});
+      }
+    }
+
+    if (usedTransactionFallback) {
+      logger.debug('Match request persisted without transaction due to unsupported MongoDB topology', {
+        requestId: matchRequest?._id,
+        userId
+      });
+    }
+
+    try {
+      await queueManager.addRequest(matchRequest);
+    } catch (error) {
+      logger.error('Failed to add request to queue after DB persistence', {
+        errorName: error.name,
+        errorMessage: error.message,
+        requestId: matchRequest?._id,
+        userId
+      });
+      await MatchRequest.updateOne(
+        { _id: matchRequest?._id, status: 'searching' },
+        { status: 'cancelled' }
+      );
+      throw error;
+    }
+
+    logger.info('Match request submitted successfully', {
+      requestId: matchRequest._id,
+      userId,
+      primaryGame: matchRequest.getPrimaryGame()?.gameId,
+      gameMode: matchRequest.criteria.gameMode,
+      transactionFallback: usedTransactionFallback
     });
-    await MatchRequest.updateOne(
-      { _id: matchRequest?._id, status: 'searching' },
-      { status: 'cancelled' }
-    );
-    throw error;
+
+    return matchRequest;
   }
-
-  logger.info('Match request submitted successfully', {
-    requestId: matchRequest._id,
-    userId,
-    primaryGame: matchRequest.getPrimaryGame()?.gameId,
-    gameMode: matchRequest.criteria.gameMode
-  });
-
-  return matchRequest;
-}
 
 
   async cancelMatchRequest(userId, requestId) {
@@ -393,36 +449,82 @@ async submitMatchRequest(userId, criteria) {
       throw new ConflictError('Match finalization already in progress');
     }
 
-    const session = await mongoose.startSession();
+    const transactionsSupported = supportsTransactions();
+    let session = null;
+    let finalizationResult = null;
     let lobbyCreated = false;
     let lobby = null;
     let persistedMatchHistory = null;
     const participants = matchData.participants || [];
+    let usedTransactionFallback = false;
+
+    const runFinalization = async (sessionContext) => {
+      const matchHistoryQuery = MatchHistory.findById(matchId);
+      if (sessionContext) {
+        matchHistoryQuery.session(sessionContext);
+      }
+      const matchHistory = await matchHistoryQuery.exec();
+      if (!matchHistory) {
+        throw new NotFoundError('Match history not found');
+      }
+
+      if (matchHistory.lobbyId) {
+        return {
+          lobbyCreated: false,
+          lobby: null,
+          matchHistory
+        };
+      }
+
+      const lobbyService = require('../../lobby/services/lobbyService');
+      const lobbyOptions = sessionContext ? { session: sessionContext } : {};
+      const createdLobby = await lobbyService.createLobby(
+        { ...matchData, matchHistory },
+        lobbyOptions
+      );
+
+      return {
+        lobbyCreated: true,
+        lobby: createdLobby,
+        matchHistory
+      };
+    };
+
+    if (transactionsSupported) {
+      session = await mongoose.startSession();
+    }
 
     try {
-      await session.withTransaction(async () => {
-        persistedMatchHistory = await MatchHistory.findById(matchId).session(session).exec();
-        if (!persistedMatchHistory) {
-          throw new NotFoundError('Match history not found');
+      if (session) {
+        try {
+          await session.withTransaction(async () => {
+            finalizationResult = await runFinalization(session);
+          });
+        } catch (error) {
+          if (isTransactionNotSupportedError(error)) {
+            usedTransactionFallback = true;
+            logger.warn('MongoDB topology lacks transaction support; retrying match finalization without session', {
+              matchId,
+              errorMessage: error.message
+            });
+            await session.endSession().catch(() => {});
+            session = null;
+            finalizationResult = await runFinalization(null);
+          } else {
+            throw error;
+          }
         }
+      } else {
+        finalizationResult = await runFinalization(null);
+      }
 
-        if (persistedMatchHistory.lobbyId) {
-          return;
-        }
-
-        const lobbyService = require('../../lobby/services/lobbyService');
-        lobby = await lobbyService.createLobby(
-          { ...matchData, matchHistory: persistedMatchHistory },
-          { session }
-        );
-        lobbyCreated = true;
-      });
+      ({ lobbyCreated, lobby, matchHistory: persistedMatchHistory } = finalizationResult || {});
 
       const finalizedMatchHistory =
         (await MatchHistory.findById(matchId)) || persistedMatchHistory;
 
       if (!finalizedMatchHistory) {
-        throw new NotFoundError('Match history missing after transaction completion');
+        throw new NotFoundError('Match history missing after finalization');
       }
 
       if (!lobby && finalizedMatchHistory.lobbyId) {
@@ -487,7 +589,8 @@ async submitMatchRequest(userId, criteria) {
         matchId: finalizedMatchHistory._id,
         lobbyId: lobby ? lobby._id : finalizedMatchHistory.lobbyId,
         participantCount: participants.length,
-        freshFinalization: lobbyCreated
+        freshFinalization: lobbyCreated,
+        transactionFallback: usedTransactionFallback
       });
 
       return finalizedMatchHistory;
@@ -495,15 +598,17 @@ async submitMatchRequest(userId, criteria) {
       logger.error('Failed to finalize match', {
         errorName: error.name,
         errorMessage: error.message,
-        matchId: matchData.matchHistory?._id
+        matchId,
+        transactionFallback: usedTransactionFallback
       });
       throw error;
     } finally {
-      await session.endSession().catch(() => {});
+      if (session) {
+        await session.endSession().catch(() => {});
+      }
       await lockManager.release(lock);
     }
   }
-
 
   async applyRelaxationToWaitingRequests() {
     try {
@@ -621,6 +726,31 @@ async estimateWaitTime(requestDoc) {
       throw error;
     }
   }
+}
+
+function supportsTransactions() {
+  const conn = mongoose.connection;
+  const topology = conn?.client?.topology;
+  if (!conn || conn.readyState !== 1 || !topology) {
+    return false;
+  }
+
+  if (typeof topology.hasSessionSupport === 'function') {
+    return topology.hasSessionSupport();
+  }
+
+  return Boolean(conn.client?.s?.options?.replicaSet);
+}
+
+function isTransactionNotSupportedError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.code === 20) {
+    return true;
+  }
+  const message = error.message || '';
+  return message.includes('Transaction numbers are only allowed on a replica set');
 }
 
 module.exports = new MatchmakingService();

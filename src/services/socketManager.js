@@ -310,7 +310,7 @@ class SocketManager {
       if (matchmakingServiceInstance && socket.userId) {
         matchmakingServiceInstance
           .getCurrentMatchRequest(socket.userId)
-          .then((currentRequestState) => {
+          .then(async (currentRequestState) => {
             if (
               currentRequestState &&
               currentRequestState.request &&
@@ -319,14 +319,24 @@ class SocketManager {
               const searchDuration =
                 currentRequestState.request.searchDuration ||
                 Date.now() - new Date(currentRequestState.request.searchStartTime).getTime();
-              const estimatedTimeResult = matchmakingServiceInstance.estimateWaitTime(
-                currentRequestState.request
-              );
+              let estimatedTimeResult = null;
+              try {
+                estimatedTimeResult = await matchmakingServiceInstance.estimateWaitTime(
+                  currentRequestState.request
+                );
+              } catch (estimateError) {
+                logger.error('Failed to estimate matchmaking wait time on subscribe', {
+                  error: estimateError.message,
+                  requestId,
+                  userId: socket.userId
+                });
+              }
               const statusPayload = {
                 status: currentRequestState.request.status,
                 searchTime: searchDuration,
                 potentialMatches: currentRequestState.queueInfo?.potentialMatches || 0,
-                estimatedTime: estimatedTimeResult ? estimatedTimeResult.estimated : 300000,
+                estimatedTime: estimatedTimeResult?.estimated ?? 300000,
+                confidence: estimatedTimeResult?.confidence || 'low',
                 matchId: currentRequestState.request.matchedLobbyId
                   ? currentRequestState.request.matchedLobbyId.toString()
                   : null
