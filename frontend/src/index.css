@@ -524,9 +524,15 @@ a:hover {
 }
 
 .lobby-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.lobby-list--compact {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .lobby-card {
@@ -534,28 +540,51 @@ a:hover {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 18px;
+}
+
+.lobby-card__body {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.lobby-card__meta {
+.lobby-card__header {
   display: flex;
-  justify-content: space-between;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.lobby-card__actions {
+.lobby-card__game {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.lobby-card__mode {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.lobby-card__meta {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.lobby-card__join {
+  width: 100%;
+  margin-top: auto;
 }
 
 .lobby-card--compact {
+  display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  padding: 18px;
+  gap: 12px;
+  aspect-ratio: auto;
 }
 
 .empty-state {
@@ -2334,7 +2363,7 @@ a:hover {
   background: rgba(21, 14, 44, 0.75);
 }
 
-.lobby-card--mock .lobby-card__actions button {
+.lobby-card--mock .lobby-card__join {
   opacity: 0.6;
   cursor: not-allowed;
 }
