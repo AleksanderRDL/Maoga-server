@@ -47,7 +47,7 @@ const submitMatchRequestSchema = Joi.object({
   regionPreference: Joi.string().valid('strict', 'preferred', 'any').default('preferred'),
 
   regions: Joi.array()
-    .items(Joi.string().valid('NA', 'EU', 'AS', 'SA', 'OC', 'AF'))
+    .items(Joi.string().valid('NA', 'EU', 'AS', 'SA', 'OC', 'AF', 'ANY'))
     .min(1)
     .max(6)
     .default(['ANY'])
@@ -113,3 +113,4 @@ module.exports = {
   getMatchHistoryQuerySchema,
   getMatchmakingStatsQuerySchema
 };
+

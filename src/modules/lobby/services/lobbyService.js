@@ -10,14 +10,19 @@ class LobbyService {
   /**
    * Create a lobby from a match
    */
-  async createLobby(matchData) {
+
+
+  async createLobby(matchData, options = {}) {
     try {
       const { matchHistory, participants } = matchData;
+      const { session } = options;
 
-      // Determine host (first participant by default)
+      if (!matchHistory) {
+        throw new BadRequestError('Match history is required to create a lobby');
+      }
+
       const hostId = participants[0].userId;
 
-      // Create lobby
       const lobby = new Lobby({
         name: `Match ${matchHistory._id.toString().slice(-6)}`,
         gameId: matchHistory.gameId,
@@ -32,50 +37,53 @@ class LobbyService {
         status: 'forming'
       });
 
-      // Add all participants
+      if (session) {
+        lobby.$session(session);
+        matchHistory.$session(session);
+      }
+
       participants.forEach((participant, index) => {
         lobby.addMember(participant.userId, index === 0);
       });
 
-      await lobby.save();
+      await lobby.save({ session });
 
-      // Create chat for lobby
       const chat = await Chat.createLobbyChat(
         lobby._id,
-        participants.map((p) => p.userId)
+        participants.map((p) => p.userId),
+        { session }
       );
 
       lobby.chatId = chat._id;
-      await lobby.save();
+      await lobby.save({ session });
 
-      // Update match history
       matchHistory.lobbyId = lobby._id;
-      await matchHistory.save();
+      await matchHistory.save({ session });
 
-      // Update match requests
       const MatchRequest = require('../../matchmaking/models/MatchRequest');
       await MatchRequest.updateMany(
         { _id: { $in: participants.map((p) => p.requestId) } },
-        { matchedLobbyId: lobby._id }
+        { matchedLobbyId: lobby._id },
+        { session }
       );
 
-      // Populate for response
-      await lobby.populate('gameId', 'name slug');
-      await lobby.populate('members.userId', 'username profile.displayName');
+      if (!session) {
+        await lobby.populate('gameId', 'name slug');
+        await lobby.populate('members.userId', 'username profile.displayName');
 
-      // Send system message
-      await this.sendSystemMessage(
-        lobby._id,
-        'Lobby created! Waiting for all players to be ready.'
-      );
+        await this.sendSystemMessage(
+          lobby._id,
+          'Lobby created! Waiting for all players to be ready.'
+        );
 
-      // Emit lobby creation events
-      this.emitLobbyUpdate(lobby);
+        this.emitLobbyUpdate(lobby);
+      }
 
       logger.info('Lobby created from match', {
         lobbyId: lobby._id,
         matchId: matchHistory._id,
-        participantCount: participants.length
+        participantCount: participants.length,
+        deferredSideEffects: Boolean(session)
       });
 
       return lobby;
@@ -88,9 +96,6 @@ class LobbyService {
     }
   }
 
-  /**
-   * Get lobby by ID
-   */
   async getLobbyById(lobbyId, userId = null) {
     try {
       const lobby = await Lobby.findById(lobbyId)
@@ -529,3 +534,8 @@ class LobbyService {
 }
 
 module.exports = new LobbyService();
+
+
+
+
+

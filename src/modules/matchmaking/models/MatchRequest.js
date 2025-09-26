@@ -101,14 +101,7 @@ const matchRequestSchema = new mongoose.Schema(
     lastProcessedAt: Date
   },
   {
-    timestamps: true,
-    toJSON: {
-      virtuals: true,
-      transform: function (doc, ret) {
-        delete ret.__v;
-        return ret;
-      }
-    }
+    timestamps: true
   }
 );
 
@@ -116,6 +109,10 @@ const matchRequestSchema = new mongoose.Schema(
 matchRequestSchema.index({ status: 1, 'criteria.games.gameId': 1 });
 matchRequestSchema.index({ status: 1, searchStartTime: 1 });
 matchRequestSchema.index({ userId: 1, status: 1 });
+matchRequestSchema.index(
+  { userId: 1 },
+  { unique: true, partialFilterExpression: { status: 'searching' } }
+);
 matchRequestSchema.index({ 'criteria.scheduledTime': 1 }, { sparse: true });
 
 // Virtual for search duration
@@ -176,3 +173,4 @@ matchRequestSchema.statics.findMatchableRequests = function (
 const MatchRequest = mongoose.model('MatchRequest', matchRequestSchema);
 
 module.exports = MatchRequest;
+

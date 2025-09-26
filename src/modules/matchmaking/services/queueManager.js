@@ -1,333 +1,491 @@
 const EventEmitter = require('events');
+const config = require('../../../config');
+const redisManager = require('../../../services/redis');
 const logger = require('../../../utils/logger').forModule('matchmaking:queueManager');
-const { ConflictError, BadRequestError } = require('../../../utils/errors'); // Added BadRequestError
+const { ConflictError, BadRequestError } = require('../../../utils/errors');
+const MatchRequest = require('../models/MatchRequest');
+
+const DEFAULT_EXPIRY_MS = 10 * 60 * 1000;
 
 class QueueManager extends EventEmitter {
   constructor() {
     super();
 
-    // Main queue structure: gameId -> gameMode -> region -> [requests]
-    this.queues = new Map();
+    this.redis = redisManager.getClient();
+    this.redisReady = redisManager
+      .connect()
+      .then((client) => {
+        this.redis = client;
+        return client;
+      })
+      .catch((error) => {
+        logger.error('Failed to initialise Redis client for queue manager', {
+          error: error.message
+        });
+        throw error;
+      });
 
-    // User to request mapping for quick lookups
-    this.userRequestMap = new Map();
+    this.prefix = `${config.redis?.keyPrefix || 'maoga'}:matchmaking`;
+    this.queueRegistryKey = `${this.prefix}:queues`;
+    this.statsKey = `${this.prefix}:stats`;
 
-    // Queue statistics
-    this.stats = {
-      totalRequests: 0,
-      activeRequests: 0,
-      matchesFormed: 0,
-      avgWaitTime: 0
-    };
+    this._ensureStatsInitialized().catch((error) => {
+      logger.error('Failed to initialize queue statistics', { error: error.message });
+    });
 
-    // Cleanup expired requests periodically
     this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredRequests();
-    }, 30000); // Every 30 seconds
-  }
-
-  /**
-   * Clear all queues (for testing)
-   */
-  clearQueues() {
-    this.queues.clear();
-    this.userRequestMap.clear();
-    this.stats.activeRequests = 0;
-    this.stats.totalRequests = 0; // Reset for cleaner tests
-    this.stats.matchesFormed = 0; // Reset for cleaner tests
-    this.stats.avgWaitTime = 0; // Reset for cleaner tests
-  }
-
-  /**
-   * Add a match request to the appropriate queue
-   */
-  addRequest(request) {
-    try {
-      // Check if user already has an active request
-      if (this.userRequestMap.has(request.userId.toString())) {
-        // Changed from generic Error to ConflictError
-        throw new ConflictError('User already has an active match request in queue');
-      }
-
-      const primaryGame = request.getPrimaryGame();
-      if (!primaryGame) {
-        // Changed from generic Error to BadRequestError
-        throw new BadRequestError('No primary game specified in match request criteria');
-      }
-
-      const gameId = primaryGame.gameId.toString();
-      const gameMode = request.criteria.gameMode;
-      const primaryRegion = request.criteria.regions[0] || 'ANY';
-
-      // Initialize queue structure if needed
-      if (!this.queues.has(gameId)) {
-        this.queues.set(gameId, new Map());
-      }
-
-      const gameQueues = this.queues.get(gameId);
-      if (!gameQueues.has(gameMode)) {
-        gameQueues.set(gameMode, new Map());
-      }
-
-      const modeQueues = gameQueues.get(gameMode);
-      if (!modeQueues.has(primaryRegion)) {
-        modeQueues.set(primaryRegion, []);
-      }
-
-      // Add to queue
-      const queue = modeQueues.get(primaryRegion);
-      queue.push(request);
-
-      // Update user mapping
-      this.userRequestMap.set(request.userId.toString(), {
-        requestId: request._id.toString(),
-        gameId,
-        gameMode,
-        region: primaryRegion
+      this.cleanupExpiredRequests().catch((error) => {
+        logger.error('Failed to cleanup expired match requests', { error: error.message });
       });
+    }, 30000);
 
-      // Update stats
-      this.stats.totalRequests++;
-      this.stats.activeRequests++;
-
-      logger.info('Match request added to queue', {
-        requestId: request._id,
-        userId: request.userId,
-        gameId,
-        gameMode,
-        region: primaryRegion,
-        queueSize: queue.length
-      });
-
-      // Emit event for potential immediate matching
-      this.emit('requestAdded', { gameId, gameMode, region: primaryRegion });
-
-      return true;
-    } catch (error) {
-      logger.error('Failed to add request to queue', {
-        error: error.message,
-        requestId: request._id
-      });
-      throw error;
+    if (typeof this.cleanupInterval.unref === 'function') {
+      this.cleanupInterval.unref();
     }
   }
 
-  /**
-   * Remove a match request from queue
-   */
-  removeRequest(userId, requestId) {
+  _queueKey(gameId, gameMode, region) {
+    return `${this.prefix}:queue:${gameId}:${gameMode}:${region}`;
+  }
+
+  _requestKey(requestId) {
+    return `${this.prefix}:request:${requestId}`;
+  }
+
+  _userKey(userId) {
+    return `${this.prefix}:user:${userId}`;
+  }
+
+  async _getRedisClient() {
+    if (this.redis) {
+      return this.redis;
+    }
+
+    if (this.redisReady) {
+      this.redis = await this.redisReady;
+      return this.redis;
+    }
+
+    const client = await redisManager.connect();
+    this.redis = client;
+    this.redisReady = Promise.resolve(client);
+    return client;
+  }
+
+  async _ensureStatsInitialized() {
+    const client = await this._getRedisClient();
+    await client.hsetnx(this.statsKey, 'totalRequests', 0);
+    await client.hsetnx(this.statsKey, 'activeRequests', 0);
+    await client.hsetnx(this.statsKey, 'matchesFormed', 0);
+    await client.hsetnx(this.statsKey, 'totalWaitTime', 0);
+  }
+
+  async _releaseUserLock(client, userKey, requestId) {
+    if (!client || !userKey || !requestId) {
+      return;
+    }
+
     try {
-      const userIdStr = userId.toString();
-      const requestInfo = this.userRequestMap.get(userIdStr);
-
-      if (!requestInfo || requestInfo.requestId !== requestId.toString()) {
-        return false;
+      const current = await client.get(userKey);
+      if (current === requestId) {
+        await client.del(userKey);
       }
-
-      const { gameId, gameMode, region } = requestInfo;
-
-      // Remove from queue
-      const queue = this.queues.get(gameId)?.get(gameMode)?.get(region);
-      if (queue) {
-        const index = queue.findIndex((req) => req._id.toString() === requestId.toString());
-        if (index !== -1) {
-          queue.splice(index, 1);
-
-          // Clean up empty structures
-          this.cleanupEmptyQueues(gameId, gameMode, region);
-        }
-      }
-
-      // Remove from user mapping
-      this.userRequestMap.delete(userIdStr);
-
-      // Update stats
-      this.stats.activeRequests--;
-
-      logger.info('Match request removed from queue', {
-        requestId,
-        userId,
-        gameId,
-        gameMode,
-        region
-      });
-
-      return true;
     } catch (error) {
-      logger.error('Failed to remove request from queue', {
-        error: error.message,
+      logger.warn('Failed to release user matchmaking lock', { error: error.message });
+    }
+  }
+
+  async addRequest(request) {
+    if (!request) {
+      throw new BadRequestError('Match request payload is required');
+    }
+
+    await this._ensureStatsInitialized();
+
+    const userId = request.userId?.toString();
+    if (!userId) {
+      throw new BadRequestError('Match request missing user identifier');
+    }
+
+    const primaryGame = request.getPrimaryGame?.() || request.criteria?.games?.[0];
+    if (!primaryGame || !primaryGame.gameId) {
+      throw new BadRequestError('No primary game specified in match request criteria');
+    }
+
+    const gameMode = request.criteria?.gameMode;
+    if (!gameMode) {
+      throw new BadRequestError('Match request missing required game mode');
+    }
+
+    const region = request.criteria?.regions?.[0] || 'ANY';
+    const gameId = primaryGame.gameId.toString();
+    const requestId = request._id.toString();
+    const queueKey = this._queueKey(gameId, gameMode, region);
+    const userKey = this._userKey(userId);
+    const requestKey = this._requestKey(requestId);
+    const now = Date.now();
+    const expiresAt = request.matchExpireTime
+      ? new Date(request.matchExpireTime).getTime()
+      : now + DEFAULT_EXPIRY_MS;
+
+    const client = await this._getRedisClient();
+    const existingRequestId = await client.get(userKey);
+
+    if (existingRequestId && existingRequestId !== requestId) {
+      logger.warn('Attempt to enqueue duplicate matchmaking request detected', {
         userId,
-        requestId
+        existingRequestId,
+        incomingRequestId: requestId
       });
+      throw new ConflictError('User already has an active match request in queue');
+    }
+
+    const multi = client.multi();
+    let setResultIndex = null;
+
+    if (!existingRequestId) {
+      setResultIndex = 0;
+      multi.set(userKey, requestId, 'NX');
+      multi.hincrby(this.statsKey, 'totalRequests', 1);
+      multi.hincrby(this.statsKey, 'activeRequests', 1);
+    }
+
+    multi.hset(requestKey, {
+      userId,
+      requestId,
+      gameId,
+      gameMode,
+      region,
+      createdAt: now,
+      expiresAt,
+      status: request.status || 'searching'
+    });
+    multi.zadd(queueKey, now, requestId);
+    multi.sadd(this.queueRegistryKey, queueKey);
+
+    const results = await multi.exec();
+
+    if (!existingRequestId) {
+      // eslint-disable-next-line security/detect-object-injection
+      const commandResult = results?.[setResultIndex]?.[1];
+      if (commandResult !== 'OK') {
+        await client
+          .multi()
+          .del(requestKey)
+          .zrem(queueKey, requestId)
+          .hincrby(this.statsKey, 'totalRequests', -1)
+          .hincrby(this.statsKey, 'activeRequests', -1)
+          .exec();
+
+        const conflictingRequestId = await client.get(userKey);
+        throw new ConflictError('User already has an active match request in queue', {
+          userId,
+          conflictingRequestId
+        });
+      }
+    }
+
+    logger.info('Match request added to distributed queue', {
+      requestId,
+      userId,
+      gameId,
+      gameMode,
+      region
+    });
+
+    this.emit('requestAdded', { gameId, gameMode, region, requestId });
+    return true;
+  }
+
+  async removeRequest(userId, requestId, options = {}) {
+    if (!requestId) {
       return false;
     }
-  }
 
-  /**
-   * Get all requests for a specific queue
-   */
-  getQueueRequests(gameId, gameMode, region) {
-    return this.queues.get(gameId.toString())?.get(gameMode)?.get(region) || [];
-  }
+    await this._ensureStatsInitialized();
 
-  getQueueSize(gameId, gameMode, region) {
-    const gameQueues = this.queues.get(gameId.toString());
-    if (!gameQueues) {
-      return { size: 0, found: false };
-    }
+    const requestKey = this._requestKey(requestId);
+    const client = await this._getRedisClient();
+    const requestInfo = await client.hgetall(requestKey);
 
-    const modeQueues = gameQueues.get(gameMode);
-    if (!modeQueues) {
-      return { size: 0, found: false };
-    }
-
-    const queue = modeQueues.get(region);
-    if (!queue) {
-      return { size: 0, found: false };
-    }
-
-    return { size: queue.length, found: true };
-  }
-
-  /**
-   * Get all requests across regions for a game mode
-   */
-  getGameModeRequests(gameId, gameMode) {
-    const gameQueues = this.queues.get(gameId.toString());
-    if (!gameQueues) {
-      return [];
-    }
-
-    const modeQueues = gameQueues.get(gameMode);
-    if (!modeQueues) {
-      return [];
-    }
-
-    const allRequests = [];
-    for (const [region, queue] of modeQueues) {
-      allRequests.push(...queue.map((req) => ({ ...req.toObject(), queueRegion: region })));
-    }
-
-    return allRequests;
-  }
-
-  /**
-   * Get user's active request info
-   */
-  getUserRequest(userId) {
-    return this.userRequestMap.get(userId.toString());
-  }
-
-  /**
-   * Update queue statistics
-   */
-  updateStats(matchFormed = false, waitTime = 0) {
-    if (matchFormed) {
-      this.stats.matchesFormed++;
-    }
-
-    if (waitTime > 0) {
-      // Update average wait time (simple moving average)
-      const totalWaitTime = this.stats.avgWaitTime * this.stats.matchesFormed;
-      this.stats.avgWaitTime = (totalWaitTime + waitTime) / (this.stats.matchesFormed + 1);
-    }
-  }
-
-  /**
-   * Get queue statistics
-   */
-  getStats() {
-    const queueSizes = new Map();
-
-    for (const [gameId, gameQueues] of this.queues) {
-      const modeMap = new Map();
-      for (const [gameMode, modeQueues] of gameQueues) {
-        const regionMap = new Map();
-        for (const [region, queue] of modeQueues) {
-          regionMap.set(region, queue.length);
-        }
-        modeMap.set(gameMode, Object.fromEntries(regionMap));
+    if (!requestInfo || Object.keys(requestInfo).length === 0) {
+      const storedUserId = userId?.toString();
+      if (storedUserId) {
+        const userKey = this._userKey(storedUserId);
+        await this._releaseUserLock(client, userKey, requestId.toString());
       }
-      queueSizes.set(gameId, Object.fromEntries(modeMap));
+      return false;
+    }
+
+    const queueKey = this._queueKey(requestInfo.gameId, requestInfo.gameMode, requestInfo.region);
+    const userKey = this._userKey(requestInfo.userId);
+
+    const multi = client.multi();
+    multi.zrem(queueKey, requestId);
+    multi.del(requestKey);
+
+    const removalResults = await multi.exec();
+    await this._releaseUserLock(client, userKey, requestId.toString());
+
+    const removedFromQueue = Number(removalResults?.[0]?.[1] || 0);
+    if (removedFromQueue > 0) {
+      await client.hincrby(this.statsKey, 'activeRequests', -1);
+    }
+
+    const remaining = await client.zcard(queueKey);
+    if (remaining === 0) {
+      await client.srem(this.queueRegistryKey, queueKey);
+    }
+
+    if (!options.silent) {
+      logger.info('Match request removed from distributed queue', {
+        requestId,
+        userId: requestInfo.userId,
+        gameId: requestInfo.gameId,
+        gameMode: requestInfo.gameMode,
+        region: requestInfo.region
+      });
+    }
+
+    return removedFromQueue > 0;
+  }
+
+  async getQueueRequests(gameId, gameMode, region) {
+    const client = await this._getRedisClient();
+    const queueKey = this._queueKey(gameId, gameMode, region);
+    const requestIds = await client.zrange(queueKey, 0, -1);
+
+    if (!requestIds || requestIds.length === 0) {
+      return [];
+    }
+
+    const requests = await MatchRequest.find({
+      _id: { $in: requestIds },
+      status: 'searching'
+    });
+
+    const requestMap = new Map();
+    requests.forEach((doc) => {
+      requestMap.set(doc._id.toString(), doc);
+    });
+
+    const ordered = [];
+    const staleRequestIds = [];
+
+    for (const id of requestIds) {
+      const doc = requestMap.get(id);
+      if (doc) {
+        ordered.push(doc);
+      } else {
+        staleRequestIds.push(id);
+      }
+    }
+
+    if (staleRequestIds.length > 0) {
+      await Promise.all(
+        staleRequestIds.map((staleId) => this.removeRequest(null, staleId, { silent: true }))
+      );
+    }
+
+    return ordered;
+  }
+
+  async getQueueSize(gameId, gameMode, region) {
+    const client = await this._getRedisClient();
+    const queueKey = this._queueKey(gameId, gameMode, region);
+    const size = await client.zcard(queueKey);
+    return { size, found: size > 0 };
+  }
+
+  async getGameModeRequests(gameId, gameMode) {
+    const client = await this._getRedisClient();
+    const queueKeys = await client.smembers(this.queueRegistryKey);
+    const modePrefix = `${this.prefix}:queue:${gameId}:${gameMode}:`;
+    const matchingKeys = queueKeys.filter((key) => key.startsWith(modePrefix));
+
+    if (matchingKeys.length === 0) {
+      return [];
+    }
+
+    const requestIdSet = new Set();
+    const regionMap = new Map();
+
+    for (const key of matchingKeys) {
+      const region = key.substring(modePrefix.length);
+      const ids = await client.zrange(key, 0, -1);
+      regionMap.set(region, ids);
+      ids.forEach((id) => requestIdSet.add(id));
+    }
+
+    if (requestIdSet.size === 0) {
+      return [];
+    }
+
+    const requestIds = Array.from(requestIdSet);
+    const requests = await MatchRequest.find({
+      _id: { $in: requestIds },
+      status: 'searching'
+    });
+
+    const requestMap = new Map(requests.map((doc) => [doc._id.toString(), doc]));
+    const results = [];
+
+    for (const [region, ids] of regionMap.entries()) {
+      for (const id of ids) {
+        const doc = requestMap.get(id);
+        if (doc) {
+          const plain = doc.toObject({ virtuals: true });
+          results.push({ ...plain, queueRegion: region });
+        } else {
+          await this.removeRequest(null, id, { silent: true });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  async getUserRequest(userId) {
+    if (!userId) {
+      return null;
+    }
+
+    const client = await this._getRedisClient();
+    const userKey = this._userKey(userId.toString());
+    const requestId = await client.get(userKey);
+    if (!requestId) {
+      return null;
+    }
+
+    const requestInfo = await client.hgetall(this._requestKey(requestId));
+    if (!requestInfo || Object.keys(requestInfo).length === 0) {
+      return null;
     }
 
     return {
-      ...this.stats,
-      queueSizes: Object.fromEntries(queueSizes),
-      timestamp: new Date()
+      ...requestInfo,
+      requestId
     };
   }
 
-  /**
-   * Clean up expired requests
-   */
-  cleanupExpiredRequests() {
+  async getStats() {
+    await this._ensureStatsInitialized();
+
+    const client = await this._getRedisClient();
+    const [statsHash, queueKeys] = await Promise.all([
+      client.hgetall(this.statsKey),
+      client.smembers(this.queueRegistryKey)
+    ]);
+
+    const queueSizes = new Map();
+
+    for (const key of queueKeys) {
+      const parts = key.split(':');
+      const region = parts.pop();
+      const gameMode = parts.pop();
+      const gameId = parts.pop();
+
+      const size = await client.zcard(key);
+
+      if (!queueSizes.has(gameId)) {
+        queueSizes.set(gameId, new Map());
+      }
+      const modeMap = queueSizes.get(gameId);
+      if (!modeMap.has(gameMode)) {
+        modeMap.set(gameMode, new Map());
+      }
+      modeMap.get(gameMode).set(region, size);
+    }
+
+    const stats = {
+      totalRequests: Number(statsHash?.totalRequests || 0),
+      activeRequests: Number(statsHash?.activeRequests || 0),
+      matchesFormed: Number(statsHash?.matchesFormed || 0),
+      avgWaitTime: 0,
+      queueSizes: {}
+    };
+
+    const totalWaitTime = Number(statsHash?.totalWaitTime || 0);
+    if (stats.matchesFormed > 0 && totalWaitTime > 0) {
+      stats.avgWaitTime = totalWaitTime / stats.matchesFormed;
+    }
+
+    for (const [gameId, modeMap] of queueSizes.entries()) {
+      const modeObj = {};
+      for (const [mode, regionMap] of modeMap.entries()) {
+      // eslint-disable-next-line security/detect-object-injection
+        modeObj[mode] = Object.fromEntries(regionMap.entries());
+      }
+      // eslint-disable-next-line security/detect-object-injection
+      stats.queueSizes[gameId] = modeObj;
+    }
+
+    stats.timestamp = new Date();
+    return stats;
+  }
+
+  async updateStats(matchFormed = false, waitTime = 0) {
+    if (!matchFormed && waitTime <= 0) {
+      return;
+    }
+
+    const client = await this._getRedisClient();
+    const multi = client.multi();
+    if (matchFormed) {
+      multi.hincrby(this.statsKey, 'matchesFormed', 1);
+    }
+    if (waitTime > 0) {
+      multi.hincrbyfloat(this.statsKey, 'totalWaitTime', waitTime);
+    }
+    await multi.exec();
+  }
+
+  async cleanupExpiredRequests() {
+    const now = Date.now();
+    const client = await this._getRedisClient();
+    const queueKeys = await client.smembers(this.queueRegistryKey);
     let cleaned = 0;
 
-    for (const [_gameId, gameQueues] of this.queues) {
-      for (const [_gameMode, modeQueues] of gameQueues) {
-        for (const [region, queue] of modeQueues) {
-          const validRequests = queue.filter((request) => {
-            if (request.isExpired()) {
-              this.userRequestMap.delete(request.userId.toString());
-              cleaned++;
-              return false;
-            }
-            return true;
-          });
+    for (const queueKey of queueKeys) {
+      const requestIds = await client.zrange(queueKey, 0, -1);
+      for (const requestId of requestIds) {
+        const requestInfo = await client.hgetall(this._requestKey(requestId));
+        if (!requestInfo || Object.keys(requestInfo).length === 0) {
+          await this.removeRequest(null, requestId, { silent: true });
+          continue;
+        }
 
-          if (validRequests.length !== queue.length) {
-            modeQueues.set(region, validRequests);
+        const expiresAt = Number(requestInfo.expiresAt || 0);
+        if (expiresAt && expiresAt <= now) {
+          const removed = await this.removeRequest(requestInfo.userId, requestId, { silent: true });
+          if (removed) {
+            cleaned += 1;
           }
         }
       }
     }
 
     if (cleaned > 0) {
-      this.stats.activeRequests -= cleaned;
-      logger.info('Cleaned up expired match requests', { count: cleaned });
+      logger.info('Cleaned up expired or stale match requests from distributed queue', { count: cleaned });
     }
   }
 
-  /**
-   * Clean up empty queue structures
-   */
-  cleanupEmptyQueues(gameId, gameMode, region) {
-    const gameQueues = this.queues.get(gameId);
-    if (!gameQueues) {
-      return;
+  async clearQueues() {
+    const client = await this._getRedisClient();
+    const keys = await client.keys(`${this.prefix}:*`);
+    if (keys.length > 0) {
+      await client.del(...keys);
     }
-
-    const modeQueues = gameQueues.get(gameMode);
-    if (!modeQueues) {
-      return;
-    }
-
-    const queue = modeQueues.get(region);
-    if (!queue || queue.length === 0) {
-      modeQueues.delete(region);
-    }
-
-    if (modeQueues.size === 0) {
-      gameQueues.delete(gameMode);
-    }
-
-    if (gameQueues.size === 0) {
-      this.queues.delete(gameId);
-    }
+    await this._ensureStatsInitialized();
   }
 
-  /**
-   * Destroy queue manager
-   */
   destroy() {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
     }
     this.removeAllListeners();
-    this.clearQueues();
   }
 }
 
-// Export singleton instance
 module.exports = new QueueManager();
+

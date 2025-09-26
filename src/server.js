@@ -4,6 +4,7 @@ const databaseManager = require('./config/database');
 const app = require('./app');
 const gameSyncJob = require('./jobs/gameSyncJob');
 const socketManager = require('./services/socketManager');
+const redisManager = require('./services/redis');
 const notificationQueue = require('./jobs/notificationQueue');
 const pushService = require('./modules/notification/services/pushService');
 const emailService = require('./modules/notification/services/emailService');
@@ -35,6 +36,9 @@ async function startServer() {
     // Connect to MongoDB
     await databaseManager.connect();
     logger.info('MongoDB connected successfully');
+
+    await redisManager.connect();
+    logger.info('Redis connected successfully');
 
     await seedDevData();
 
@@ -78,6 +82,8 @@ function gracefulShutdown(signal) {
       logger.info('HTTP server closed');
       try {
         notificationQueue.stop();
+        await redisManager.disconnect();
+        logger.info('Redis connection closed');
         await databaseManager.disconnect();
         logger.info('Database connections closed');
         logger.info('Graceful shutdown completed');
@@ -103,3 +109,5 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start the server
 startServer();
+
+

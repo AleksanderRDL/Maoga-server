@@ -101,14 +101,18 @@ chatSchema.methods.addSystemMessage = function (content) {
 };
 
 // Static methods
-chatSchema.statics.createLobbyChat = async function (lobbyId, participants) {
+chatSchema.statics.createLobbyChat = async function (lobbyId, participants, options = {}) {
   const chat = new this({
     chatType: 'lobby',
     lobbyId,
     participants
   });
 
-  await chat.save();
+  if (options.session) {
+    chat.$session(options.session);
+  }
+
+  await chat.save({ session: options.session });
   return chat;
 };
 

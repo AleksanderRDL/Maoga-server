@@ -76,6 +76,7 @@ class MatchAlgorithmService {
   /**
    * Find compatible matches from enriched requests
    */
+
   async findMatches(enrichedRequests, gameId, gameMode, region) {
     const matches = [];
     const processed = new Set();
@@ -95,33 +96,55 @@ class MatchAlgorithmService {
         gameId
       );
 
-      // Ensure we have enough for a match INCLUDING the primary player
-      if (compatiblePartners.length >= this.config.minGroupSize - 1) {
-        // Correctly form the participants array for the match
-        const matchParticipants = [primary, ...compatiblePartners];
+      const primaryMinGroupSize =
+        primary.request?.criteria?.groupSize?.min || this.config.minGroupSize;
+      const requiredPartners = Math.max(primaryMinGroupSize, this.config.minGroupSize) - 1;
 
-        // Ensure we don't exceed max group size (if you form a match with only a subset of compatiblePartners)
-        // For now, assuming we use all found compatiblePartners that fit within minGroupSize logic.
-        // If you want to form smaller groups out of a larger pool of compatible partners, logic here would be more complex.
-
-        if (
-          matchParticipants.length >= this.config.minGroupSize &&
-          matchParticipants.length <=
-            (primary.request.criteria.groupSize?.max || this.config.maxGroupSize)
-        ) {
-          const match = await this.createMatch(matchParticipants, gameId, gameMode, region);
-          matches.push(match);
-
-          // Mark all participants in the formed match as processed
-          matchParticipants.forEach((p) => {
-            processed.add(p.request._id.toString());
-          });
-        }
+      if (compatiblePartners.length < requiredPartners) {
+        continue;
       }
+
+      const matchParticipants = [primary, ...compatiblePartners];
+
+      const requiredMinGroupSize = matchParticipants.reduce(
+        (max, participant) =>
+          Math.max(
+            max,
+            participant.request?.criteria?.groupSize?.min || this.config.minGroupSize
+          ),
+        this.config.minGroupSize
+      );
+
+      if (matchParticipants.length < requiredMinGroupSize) {
+        logger.debug('Skipping match due to unmet minimum group size requirement', {
+          requiredMinGroupSize,
+          participantCount: matchParticipants.length,
+          primaryRequestId: primary.request._id
+        });
+        continue;
+      }
+
+      const maxGroupSizeForPrimary =
+        primary.request.criteria.groupSize?.max || this.config.maxGroupSize;
+
+      if (
+        matchParticipants.length < this.config.minGroupSize ||
+        matchParticipants.length > maxGroupSizeForPrimary
+      ) {
+        continue;
+      }
+
+      const match = await this.createMatch(matchParticipants, gameId, gameMode, region);
+      matches.push(match);
+
+      matchParticipants.forEach((participant) => {
+        processed.add(participant.request._id.toString());
+      });
     }
 
     return matches;
   }
+
 
   /**
    * Find compatible partners for a primary request
@@ -557,3 +580,4 @@ class MatchAlgorithmService {
 }
 
 module.exports = new MatchAlgorithmService();
+

@@ -72,6 +72,17 @@ const baseConfig = {
       socketTimeoutMS: 45000
     }
   },
+  redis: {
+    url: process.env.REDIS_URL,
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+    username: process.env.REDIS_USERNAME,
+    password: process.env.REDIS_PASSWORD,
+    db: parseInt(process.env.REDIS_DB, 10) || 0,
+    keyPrefix: process.env.REDIS_KEY_PREFIX || 'maoga',
+    lockTTL: parseInt(process.env.REDIS_LOCK_TTL_MS, 10) || 5000,
+    requestLockTtl: parseInt(process.env.MATCH_REQUEST_LOCK_TTL_MS, 10) || 15 * 60 * 1000
+  },
   // External API Configuration
   igdb: {
     clientId: process.env.IGDB_CLIENT_ID || 'your-igdb-client-id',
@@ -201,3 +212,4 @@ if (mergedConfig.logging.showConfig) {
 }
 
 module.exports = mergedConfig;
+

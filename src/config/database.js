@@ -23,6 +23,25 @@ function configureDebugLogging() {
 
 configureDebugLogging();
 
+mongoose.set('toJSON', {
+  virtuals: true,
+  transform: (_doc, ret) => {
+    if (ret && typeof ret === 'object') {
+      delete ret.__v;
+    }
+    return ret;
+  }
+});
+
+mongoose.set('toObject', {
+  virtuals: true,
+  transform: (_doc, ret) => {
+    if (ret && typeof ret === 'object') {
+      delete ret.__v;
+    }
+    return ret;
+  }
+});
 class DatabaseManager {
   constructor() {
     this.isConnected = false;
@@ -100,3 +119,4 @@ class DatabaseManager {
 }
 
 module.exports = new DatabaseManager();
+

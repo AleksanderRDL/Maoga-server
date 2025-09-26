@@ -1,10 +1,12 @@
 // src/modules/matchmaking/services/matchmakingService.js
+const mongoose = require('mongoose');
 const MatchRequest = require('../models/MatchRequest');
 const MatchHistory = require('../models/MatchHistory');
 const User = require('../../auth/models/User');
 const Game = require('../../game/models/Game');
 const queueManager = require('./queueManager');
 const matchAlgorithmService = require('./matchAlgorithmService');
+const lockManager = require('../../../services/redis/lockManager');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger').forModule('matchmaking:service');
 const socketManager = require('../../../services/socketManager');
@@ -33,10 +35,16 @@ class MatchmakingService {
     });
   }
 
-  async submitMatchRequest(userId, criteria) {
-    try {
+
+async submitMatchRequest(userId, criteria) {
+  const session = await MatchRequest.startSession();
+  let matchRequest;
+
+  try {
+    await session.withTransaction(async () => {
       logger.debug(`Attempting to submit match request for userId: ${userId}`, { criteria });
-      const existingRequest = await MatchRequest.findActiveByUser(userId);
+
+      const existingRequest = await MatchRequest.findActiveByUser(userId).session(session);
       if (existingRequest) {
         logger.warn(
           `User ${userId} already has an active matchmaking request: ${existingRequest._id}`
@@ -44,7 +52,7 @@ class MatchmakingService {
         throw new ConflictError('User already has an active matchmaking request');
       }
 
-      const user = await User.findById(userId);
+      const user = await User.findById(userId).session(session);
       if (!user || user.status !== 'active') {
         logger.warn(
           `User ${userId} is not eligible for matchmaking (status: ${user ? user.status : 'not found'})`
@@ -55,8 +63,9 @@ class MatchmakingService {
       if (!criteria.games || criteria.games.length === 0) {
         throw new BadRequestError('At least one game must be specified');
       }
+
       const gameIds = criteria.games.map((g) => g.gameId);
-      const games = await Game.find({ _id: { $in: gameIds } });
+      const games = await Game.find({ _id: { $in: gameIds } }).session(session);
       if (games.length !== gameIds.length) {
         const foundGameIds = games.map((g) => g._id.toString());
         const missingGameIds = gameIds.filter((id) => !foundGameIds.includes(id));
@@ -68,36 +77,58 @@ class MatchmakingService {
         throw new BadRequestError(`Invalid game IDs: ${missingGameIds.join(', ')}`);
       }
 
-      const matchRequest = new MatchRequest({
+      matchRequest = new MatchRequest({
         userId,
         criteria: {
           ...criteria,
           languages: criteria.languages || user.gamingPreferences?.languages || ['en'],
-          regions: criteria.regions || user.gamingPreferences?.regions || ['ANY'] // Use user preferences as fallback
+          regions: criteria.regions || user.gamingPreferences?.regions || ['ANY']
         }
       });
-      await matchRequest.save();
+
+      await matchRequest.save({ session });
       logger.info('Match request saved to DB', { requestId: matchRequest._id, userId });
-
-      queueManager.addRequest(matchRequest);
-      // Initial status is now emitted by socketManager upon subscription
-
-      logger.info('Match request submitted successfully', {
-        requestId: matchRequest._id,
-        userId,
-        primaryGame: matchRequest.getPrimaryGame()?.gameId,
-        gameMode: criteria.gameMode
-      });
-      return matchRequest;
-    } catch (error) {
-      logger.error('Failed to submit match request', {
-        errorName: error.name,
-        errorMessage: error.message,
-        userId
-      });
-      throw error;
+    });
+  } catch (error) {
+    logger.error('Failed to persist match request transaction', {
+      errorName: error.name,
+      errorMessage: error.message,
+      userId
+    });
+    if (error && error.code === 11000) {
+      throw new ConflictError('User already has an active matchmaking request');
     }
+    throw error;
+  } finally {
+    await session.endSession();
   }
+
+  try {
+    await queueManager.addRequest(matchRequest);
+  } catch (error) {
+    logger.error('Failed to add request to queue after DB persistence', {
+      errorName: error.name,
+      errorMessage: error.message,
+      requestId: matchRequest?._id,
+      userId
+    });
+    await MatchRequest.updateOne(
+      { _id: matchRequest?._id, status: 'searching' },
+      { status: 'cancelled' }
+    );
+    throw error;
+  }
+
+  logger.info('Match request submitted successfully', {
+    requestId: matchRequest._id,
+    userId,
+    primaryGame: matchRequest.getPrimaryGame()?.gameId,
+    gameMode: matchRequest.criteria.gameMode
+  });
+
+  return matchRequest;
+}
+
 
   async cancelMatchRequest(userId, requestId) {
     try {
@@ -111,7 +142,7 @@ class MatchmakingService {
         throw new NotFoundError('Match request not found or already processed');
       }
 
-      const removed = queueManager.removeRequest(userId, requestId);
+      const removed = await queueManager.removeRequest(userId, requestId);
       if (!removed) {
         logger.warn(
           'Request not found in queue manager, but DB record exists and is being cancelled',
@@ -166,7 +197,7 @@ class MatchmakingService {
         requestDoc.criteria.regions &&
         requestDoc.criteria.regions.length > 0
       ) {
-        const gameQueue = queueManager.getQueueRequests(
+        const gameQueue = await queueManager.getQueueRequests(
           primaryGame.gameId.toString(),
           requestDoc.criteria.gameMode,
           requestDoc.criteria.regions[0] // Assuming the first region is the primary for queue lookup
@@ -179,7 +210,7 @@ class MatchmakingService {
         );
       }
 
-      const estimatedTimeResult = this.estimateWaitTime(requestDoc); // Pass the Mongoose document
+      const estimatedTimeResult = await this.estimateWaitTime(requestDoc); // Pass the Mongoose document
 
       return {
         // Use .toJSON() for the final API response if a plain object is preferred
@@ -257,7 +288,7 @@ class MatchmakingService {
     }
     this.isProcessing = true;
     try {
-      const stats = queueManager.getStats();
+      const stats = await queueManager.getStats();
       for (const [gameId, gameQueues] of Object.entries(stats.queueSizes)) {
         for (const [gameMode, modeQueues] of Object.entries(gameQueues)) {
           for (const [region, queueSize] of Object.entries(modeQueues)) {
@@ -278,7 +309,7 @@ class MatchmakingService {
   async processSpecificQueue(gameId, gameMode, region) {
     logger.info(`Processing specific queue: Game ${gameId}, Mode ${gameMode}, Region ${region}`);
     try {
-      const requests = queueManager.getQueueRequests(gameId, gameMode, region);
+      const requests = await queueManager.getQueueRequests(gameId, gameMode, region);
       logger.debug(`Found ${requests.length} requests in queue ${gameId}-${gameMode}-${region}`);
 
       for (const requestData of requests) {
@@ -288,7 +319,7 @@ class MatchmakingService {
           request.searchDuration === undefined
             ? Date.now() - new Date(request.searchStartTime).getTime()
             : request.searchDuration;
-        const estimatedTimeResult = this.estimateWaitTime(request); // Pass Mongoose doc or new instance
+        const estimatedTimeResult = await this.estimateWaitTime(request); // Pass Mongoose doc or new instance
         const statusPayload = {
           status: 'searching',
           searchTime: searchDuration,
@@ -326,7 +357,7 @@ class MatchmakingService {
         await this.finalizeMatch(match);
       }
       if (matches.length > 0) {
-        queueManager.updateStats(
+        await queueManager.updateStats(
           true,
           matches.reduce(
             (sum, match) => sum + (match.matchHistory.matchingMetrics?.totalSearchTime || 0),
@@ -345,71 +376,121 @@ class MatchmakingService {
     }
   }
 
+
   async finalizeMatch(matchData) {
+    const matchId = matchData?.matchHistory?._id?.toString();
+    if (!matchId) {
+      throw new BadRequestError('Match history reference is required to finalize a match');
+    }
+
+    const lock = await lockManager.acquire(`match:${matchId}`, config.redis.lockTTL);
+    if (!lock) {
+      logger.warn('Match finalization already in progress', { matchId });
+      const existingMatch = await MatchHistory.findById(matchId);
+      if (existingMatch?.lobbyId) {
+        return existingMatch;
+      }
+      throw new ConflictError('Match finalization already in progress');
+    }
+
+    const session = await mongoose.startSession();
+    let lobbyCreated = false;
+    let lobby = null;
+    let persistedMatchHistory = null;
+    const participants = matchData.participants || [];
+
     try {
-      const { matchHistory, participants } = matchData;
-      logger.info(`Finalizing match ${matchHistory._id} with ${participants.length} participants.`);
+      await session.withTransaction(async () => {
+        persistedMatchHistory = await MatchHistory.findById(matchId).session(session).exec();
+        if (!persistedMatchHistory) {
+          throw new NotFoundError('Match history not found');
+        }
 
-      // Create lobby using lobbyService
-      const lobbyService = require('../../lobby/services/lobbyService');
-      const lobby = await lobbyService.createLobby(matchData);
+        if (persistedMatchHistory.lobbyId) {
+          return;
+        }
 
-      // Update participants with lobby info
-      participants.forEach((participant) => {
-        const statusPayload = {
-          status: 'matched',
-          matchId: matchHistory._id.toString(),
-          lobbyId: lobby._id.toString(),
-          participants: participants.map((p) => ({
-            userId: p.user?._id.toString() || p.userId.toString(),
-            username: p.user?.username || 'Unknown'
-          }))
-        };
-
-        logger.debug(
-          `Emitting 'matched' status for participant ${participant.userId} (request: ${participant.requestId})`,
-          statusPayload
+        const lobbyService = require('../../lobby/services/lobbyService');
+        lobby = await lobbyService.createLobby(
+          { ...matchData, matchHistory: persistedMatchHistory },
+          { session }
         );
-
-        socketManager.emitMatchmakingStatus(participant.requestId.toString(), statusPayload);
-
-        // Auto-subscribe to lobby updates
-        socketManager.emitToUser(
-          participant.user?._id.toString() || participant.userId.toString(),
-          'lobby:created',
-          { lobbyId: lobby._id.toString() }
-        );
-
-        queueManager.removeRequest(
-          participant.user?._id.toString() || participant.userId.toString(),
-          participant.requestId.toString()
-        );
+        lobbyCreated = true;
       });
 
-      logger.info('Match finalized with lobby created', {
-        matchId: matchHistory._id,
-        lobbyId: lobby._id,
-        participantCount: participants.length
-      });
+      const finalizedMatchHistory =
+        (await MatchHistory.findById(matchId)) || persistedMatchHistory;
 
-      // Notify each participant that a match has been found.
+      if (!finalizedMatchHistory) {
+        throw new NotFoundError('Match history missing after transaction completion');
+      }
+
+      if (!lobby && finalizedMatchHistory.lobbyId) {
+        const lobbyService = require('../../lobby/services/lobbyService');
+        lobby = await lobbyService.getLobbyById(finalizedMatchHistory.lobbyId.toString());
+      }
+
       await Promise.all(
         participants.map((participant) =>
-          notificationService.createNotification(participant.userId.toString(), {
-            type: 'match_found',
-            title: 'Match Found!',
-            message: `You've been matched for ${matchHistory.gameMode} game`,
-            data: {
-              entityType: 'lobby',
-              entityId: lobby._id,
-              actionUrl: `/lobbies/${lobby._id}`
-            },
-            priority: 'high'
-          })
+          queueManager.removeRequest(
+            participant.user?._id?.toString() || participant.userId.toString(),
+            participant.requestId.toString(),
+            { silent: true }
+          )
         )
       );
 
-      return matchHistory;
+      if (lobbyCreated && lobby) {
+        participants.forEach((participant) => {
+          const participantId = participant.user?._id?.toString() || participant.userId.toString();
+          const statusPayload = {
+            status: 'matched',
+            matchId: finalizedMatchHistory._id.toString(),
+            lobbyId: lobby._id.toString(),
+            participants: participants.map((p) => ({
+              userId: p.user?._id?.toString() || p.userId.toString(),
+              username: p.user?.username || 'Unknown'
+            }))
+          };
+
+          socketManager.emitMatchmakingStatus(participant.requestId.toString(), statusPayload);
+          socketManager.emitToUser(participantId, 'lobby:created', {
+            lobbyId: lobby._id.toString()
+          });
+        });
+
+        await Promise.all(
+          participants.map((participant) =>
+            notificationService.createNotification(participant.userId.toString(), {
+              type: 'match_found',
+              title: 'Match Found!',
+              message: `You've been matched for ${finalizedMatchHistory.gameMode} game`,
+              data: {
+                entityType: 'lobby',
+                entityId: lobby._id,
+                actionUrl: `/lobbies/${lobby._id}`
+              },
+              priority: 'high'
+            })
+          )
+        );
+
+        await queueManager.updateStats(
+          true,
+          finalizedMatchHistory?.matchingMetrics?.totalSearchTime || 0
+        );
+      } else if (!lobbyCreated) {
+        logger.info('Match already finalized; skipping duplicate notifications', { matchId });
+      }
+
+      logger.info('Match finalized with lobby created', {
+        matchId: finalizedMatchHistory._id,
+        lobbyId: lobby ? lobby._id : finalizedMatchHistory.lobbyId,
+        participantCount: participants.length,
+        freshFinalization: lobbyCreated
+      });
+
+      return finalizedMatchHistory;
     } catch (error) {
       logger.error('Failed to finalize match', {
         errorName: error.name,
@@ -417,8 +498,12 @@ class MatchmakingService {
         matchId: matchData.matchHistory?._id
       });
       throw error;
+    } finally {
+      await session.endSession().catch(() => {});
+      await lockManager.release(lock);
     }
   }
+
 
   async applyRelaxationToWaitingRequests() {
     try {
@@ -437,7 +522,7 @@ class MatchmakingService {
           });
           const primaryGame = request.getPrimaryGame(); // This will work
           if (primaryGame && primaryGame.gameId) {
-            this.processSpecificQueue(
+            await this.processSpecificQueue(
               primaryGame.gameId.toString(),
               request.criteria.gameMode,
               request.criteria.regions[0] || 'ANY'
@@ -450,87 +535,85 @@ class MatchmakingService {
     }
   }
 
-  estimateWaitTime(requestDoc) {
-    // requestDoc can be a Mongoose document or a plain object that MatchRequest can instantiate
-    const request = requestDoc instanceof MatchRequest ? requestDoc : new MatchRequest(requestDoc);
 
-    const userIdString = request.userId
-      ? typeof request.userId.toString === 'function'
-        ? request.userId.toString()
-        : String(request.userId)
-      : null;
+async estimateWaitTime(requestDoc) {
+  const request = requestDoc instanceof MatchRequest ? requestDoc : new MatchRequest(requestDoc);
 
-    if (!userIdString) {
-      logger.warn('estimateWaitTime: userId missing or invalid on request object.', {
-        requestData: requestDoc
-      });
-      return { estimated: 300000, confidence: 'low' }; // Default 5 mins
-    }
+  const userIdString = request.userId
+    ? typeof request.userId.toString === 'function'
+      ? request.userId.toString()
+      : String(request.userId)
+    : null;
 
-    const queueInfo = queueManager.getUserRequest(userIdString);
-
-    if (!queueInfo) {
-      logger.warn(`estimateWaitTime: No queue info found for user ${userIdString}`);
-      return { estimated: 300000, confidence: 'low' };
-    }
-
-    const stats = queueManager.getStats();
-    const avgWaitTime = stats.avgWaitTime > 0 ? stats.avgWaitTime : 60000; // Default 1 min if no avg
-
-    const gameId = queueInfo.gameId.toString();
-    const gameMode = queueInfo.gameMode;
-    const region = queueInfo.region;
-
-    const { size: queueSize, found: queueFound } = queueManager.getQueueSize(
-      gameId,
-      gameMode,
-      region
-    );
-
-    if (!queueFound) {
-      logger.warn(
-        `estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`
-      );
-    }
-
-    const minGroupSizeForMatch = matchAlgorithmService.config.minGroupSize || 2;
-    let estimatedTime = avgWaitTime; // Base estimate
-
-    if (queueSize > 0) {
-      // Adjust based on current queue size relative to how many more are needed
-      const playersNeeded = Math.max(0, minGroupSizeForMatch - queueSize);
-      if (playersNeeded === 0) {
-        // Enough players are in the queue
-        estimatedTime = avgWaitTime / minGroupSizeForMatch; // Faster if queue is full or nearly full
-      } else {
-        estimatedTime = avgWaitTime * playersNeeded; // Slower if more players are needed
-      }
-    } else {
-      // Queue is empty (or only self)
-      estimatedTime = avgWaitTime * minGroupSizeForMatch;
-    }
-
-    estimatedTime = Math.min(estimatedTime, 30 * 60 * 1000); // Cap at 30 mins
-    estimatedTime = Math.max(estimatedTime, 10000); // Minimum 10 seconds estimate
-
-    logger.debug('Estimated wait time calculated', {
-      userId: userIdString,
-      gameId,
-      gameMode,
-      region,
-      queueSize,
-      avgWaitTime,
-      estimatedTime
+  if (!userIdString) {
+    logger.warn('estimateWaitTime: userId missing or invalid on request object.', {
+      requestData: requestDoc
     });
-    return {
-      estimated: estimatedTime,
-      confidence: queueSize >= minGroupSizeForMatch ? 'medium' : 'low'
-    };
+    return { estimated: 300000, confidence: 'low' };
   }
+
+  const queueInfo = await queueManager.getUserRequest(userIdString);
+
+  if (!queueInfo) {
+    logger.warn(`estimateWaitTime: No queue info found for user ${userIdString}`);
+    return { estimated: 300000, confidence: 'low' };
+  }
+
+  const stats = await queueManager.getStats();
+  const avgWaitTime = stats.avgWaitTime > 0 ? stats.avgWaitTime : 60000;
+
+  const gameId = queueInfo.gameId.toString();
+  const gameMode = queueInfo.gameMode;
+  const region = queueInfo.region;
+
+  const { size: queueSize, found: queueFound } = await queueManager.getQueueSize(
+    gameId,
+    gameMode,
+    region
+  );
+
+  if (!queueFound) {
+    logger.warn(
+      `estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`
+    );
+  }
+
+  const minGroupSizeForMatch = matchAlgorithmService.config.minGroupSize || 2;
+  let estimatedTime = avgWaitTime;
+
+  if (queueSize > 0) {
+    const playersNeeded = Math.max(0, minGroupSizeForMatch - queueSize);
+    if (playersNeeded === 0) {
+      estimatedTime = avgWaitTime / minGroupSizeForMatch;
+    } else {
+      estimatedTime = avgWaitTime * playersNeeded;
+    }
+  } else {
+    estimatedTime = avgWaitTime * minGroupSizeForMatch;
+  }
+
+  estimatedTime = Math.min(estimatedTime, 30 * 60 * 1000);
+  estimatedTime = Math.max(estimatedTime, 10000);
+
+  logger.debug('Estimated wait time calculated', {
+    userId: userIdString,
+    gameId,
+    gameMode,
+    region,
+    queueSize,
+    avgWaitTime,
+    estimatedTime
+  });
+  return {
+    estimated: estimatedTime,
+    confidence: queueSize >= minGroupSizeForMatch ? 'medium' : 'low'
+  };
+}
+
 
   async getStatistics(options = {}) {
     try {
-      const queueStats = queueManager.getStats();
+      const queueStats = await queueManager.getStats();
       const matchStats = await matchAlgorithmService.getMatchStatistics(options.timeRange);
       return { queues: queueStats, matches: matchStats, timestamp: new Date() };
     } catch (error) {
@@ -541,3 +624,18 @@ class MatchmakingService {
 }
 
 module.exports = new MatchmakingService();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
