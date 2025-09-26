@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { MOCK_ACTIVE_LOBBIES } from '../services/mockLobbies.js';
 
 const LobbiesPage = () => {
   const navigate = useNavigate();
@@ -116,6 +117,9 @@ const LobbiesPage = () => {
       .map((entry) => entry.lobby);
   }, [activeLobbies, preferredGameNames]);
 
+  const showMockLobbies = prioritizedLobbies.length === 0 && !loading;
+  const displayLobbies = showMockLobbies ? MOCK_ACTIVE_LOBBIES : prioritizedLobbies;
+
   return (
     <div className="page">
       <section className="section">
@@ -153,10 +157,15 @@ const LobbiesPage = () => {
       <section className="section">
         <div className="section__header">
           <h3>Active lobbies needing players</h3>
-          <span>{prioritizedLobbies.length}</span>
+          <span>{displayLobbies.length}</span>
         </div>
+        {showMockLobbies ? (
+          <p className="page__notice">
+            We mocked a few example lobbies so you can preview how the squad list will look.
+          </p>
+        ) : null}
         <div className="lobby-list">
-          {prioritizedLobbies.map((lobby) => {
+          {displayLobbies.map((lobby) => {
             const memberCount = lobby.memberCount ?? lobby.members?.length ?? 0;
             const readyCount = lobby.readyCount ?? 0;
             const playersNeeded = Math.max(memberCount - readyCount, 0);
@@ -168,14 +177,32 @@ const LobbiesPage = () => {
             const host = lobby.members?.find((member) => member.isHost);
             const gameName = lobby.gameId?.name || 'Unknown game';
             const isPreferred = preferredGameNames.some((name) => gameName.toLowerCase().includes(name));
+            const isMock = lobby.isMock;
+            const handleViewLobby = () => {
+              if (!isMock) {
+                navigate(`/lobbies/${lobby._id}`);
+              }
+            };
 
             return (
-              <div className={`lobby-card ${isPreferred ? 'lobby-card--preferred' : ''}`} key={lobby._id}>
+              <div
+                className={`lobby-card ${isPreferred ? 'lobby-card--preferred' : ''} ${
+                  isMock ? 'lobby-card--mock' : ''
+                }`}
+                key={lobby._id}
+              >
                 <div>
                   <h4>{lobby.name}</h4>
                   <p>
                     {gameName} • {lobby.gameMode}
                   </p>
+                  {Array.isArray(lobby.tags) && lobby.tags.length ? (
+                    <ul className="lobby-card__tags">
+                      {lobby.tags.map((tag) => (
+                        <li key={tag}>{tag}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
                 <div className="lobby-card__meta">
                   <span>{playersNeeded} player{playersNeeded === 1 ? '' : 's'} needed</span>
@@ -185,24 +212,30 @@ const LobbiesPage = () => {
                   <span>Host: {host?.userId?.profile?.displayName || host?.userId?.username}</span>
                 </div>
                 <div className="lobby-card__actions">
-                  <button type="button" onClick={() => navigate(`/lobbies/${lobby._id}`)}>
-                    View lobby
+                  <button type="button" onClick={handleViewLobby} disabled={isMock}>
+                    {isMock ? 'Mock lobby' : 'View lobby'}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleToggleReady(lobby._id, isReady)}
                     className={isReady ? 'secondary-button' : ''}
+                    disabled={isMock}
                   >
                     {isReady ? 'Mark not ready' : 'Mark ready'}
                   </button>
-                  <button type="button" className="danger-button" onClick={() => handleLeaveLobby(lobby._id)}>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => handleLeaveLobby(lobby._id)}
+                    disabled={isMock}
+                  >
                     Leave
                   </button>
                 </div>
               </div>
             );
           })}
-          {prioritizedLobbies.length === 0 && !loading ? (
+          {displayLobbies.length === 0 && !loading ? (
             <div className="empty-state">
               <p>No active lobbies yet. Join a match to get started!</p>
             </div>
