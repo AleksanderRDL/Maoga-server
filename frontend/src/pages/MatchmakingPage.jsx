@@ -233,14 +233,72 @@ const MatchmakingPage = () => {
     });
   }, []);
 
+  const userGameSuggestions = useMemo(() => {
+    if (!user?.gameProfiles) {
+      return [];
+    }
+
+    return user.gameProfiles
+      .map((profile) => {
+        const game = profile.gameId;
+        if (!game?._id) {
+          return null;
+        }
+
+        const normalisedModes = Array.isArray(game.gameModes) && game.gameModes.length > 0
+          ? game.gameModes
+          : Array.isArray(profile.gameModes)
+            ? profile.gameModes
+                .filter(Boolean)
+                .map((mode) => (typeof mode === 'string' ? { name: mode } : mode))
+            : [];
+
+        const normalisedGenres = Array.isArray(game.genres) && game.genres.length > 0
+          ? game.genres
+          : Array.isArray(profile.gameGenres)
+            ? profile.gameGenres
+                .filter(Boolean)
+                .map((genre) => (typeof genre === 'string' ? { name: genre } : genre))
+            : [];
+
+        return {
+          ...game,
+          gameModes: normalisedModes,
+          genres: normalisedGenres
+        };
+      })
+      .filter(Boolean);
+  }, [user]);
+
+  const mergeGameLists = useCallback((...lists) => {
+    const unique = new Map();
+
+    lists
+      .filter(Array.isArray)
+      .forEach((games) => {
+        games.forEach((game) => {
+          if (!game?._id) {
+            return;
+          }
+
+          if (!unique.has(game._id)) {
+            unique.set(game._id, game);
+          }
+        });
+      });
+
+    return Array.from(unique.values());
+  }, []);
+
   const fetchTrending = useCallback(async () => {
     try {
-      const response = await apiClient.get('/games/trending', { params: { limit: 12 } });
+      const response = await apiClient.get('/games/trending', { params: { limit: 48 } });
       const games = response.data?.data?.games || [];
-      setTrending(games);
+      const combined = mergeGameLists(games, userGameSuggestions);
+      setTrending(combined);
       if (focusGame) {
         if (focusGame._id) {
-          const match = games.find((game) => game._id === focusGame._id);
+          const match = combined.find((game) => game._id === focusGame._id);
           if (match) {
             addGame(match);
             setActiveStep('filters');
@@ -254,8 +312,13 @@ const MatchmakingPage = () => {
       }
     } catch (err) {
       console.error('Failed to load trending games', err);
+      if (userGameSuggestions.length > 0) {
+        setTrending(userGameSuggestions);
+      } else {
+        setTrending([]);
+      }
     }
-  }, [addGame, focusGame]);
+  }, [addGame, focusGame, mergeGameLists, userGameSuggestions]);
 
   useEffect(() => {
     fetchTrending();
@@ -312,16 +375,26 @@ const MatchmakingPage = () => {
     setFeedback(null);
     try {
       const payload = {
-        games: selectedGames.map((game) => ({ gameId: game._id })),
-        gameMode: mode,
-        regions,
-        languages: selectedLanguages,
-        groupSize
+        games: lockedProfile.games,
+        gameMode: lockedProfile.mode,
+        regions: lockedProfile.regions,
+        languages: lockedProfile.languages,
+        groupSize: lockedProfile.groupSize,
+        playerPreferences: lockedProfile.playerPreferences,
+        behaviourScore: lockedProfile.behaviourScore,
+        extraFilters: lockedProfile.extraFilters,
+        ageRange: lockedProfile.ageRange
       };
 
-      await apiClient.post('/matchmaking', payload);
-      setActiveStep('games');
+      const response = await apiClient.post('/matchmaking', payload);
       setFeedback('Matchmaking request submitted!');
+      setProfileNotice('Search started! We\'ll keep your profile locked while we queue.');
+      if (response.data?.data?.matchRequest) {
+        setStatus((prev) => ({
+          request: response.data.data.matchRequest,
+          queueInfo: prev?.queueInfo || null
+        }));
+      }
       fetchStatus();
     } catch (err) {
       const message = err.response?.data?.message || err.response?.data?.error || err.message;
@@ -407,7 +480,10 @@ const MatchmakingPage = () => {
 
   const hasActiveRequest = Boolean(status?.request);
 
-  const availableGames = searchResults.length > 0 ? searchResults : trending;
+  const availableGames = useMemo(() => {
+    const base = searchResults.length > 0 ? searchResults : trending;
+    return mergeGameLists(base, userGameSuggestions, selectedGames);
+  }, [mergeGameLists, searchResults, selectedGames, trending, userGameSuggestions]);
 
   const sortedAvailableGames = useMemo(() => {
     if (favoriteGameIds.length === 0) {

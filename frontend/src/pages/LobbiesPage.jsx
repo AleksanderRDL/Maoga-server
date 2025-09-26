@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { MOCK_ACTIVE_LOBBIES, isMockLobbyId } from '../services/mockLobbies.js';
-import getGameArt from '../services/gameArt.js';
 
 const LobbiesPage = () => {
   const navigate = useNavigate();
@@ -13,7 +12,6 @@ const LobbiesPage = () => {
   const [includeHistory, setIncludeHistory] = useState(false);
   const [joinId, setJoinId] = useState('');
   const [feedback, setFeedback] = useState(null);
-  const [joiningLobbyId, setJoiningLobbyId] = useState(null);
 
   const fetchLobbies = useCallback(async () => {
     setLoading(true);
@@ -48,7 +46,6 @@ const LobbiesPage = () => {
         return true;
       }
 
-      setJoiningLobbyId(trimmedId);
       setFeedback(null);
 
       try {
@@ -59,8 +56,6 @@ const LobbiesPage = () => {
         const message = err.response?.data?.message || err.response?.data?.error || err.message;
         setFeedback(message || 'Failed to join lobby');
         return false;
-      } finally {
-        setJoiningLobbyId(null);
       }
     },
     [navigate]
@@ -172,31 +167,12 @@ const LobbiesPage = () => {
             const memberCount = lobby.memberCount ?? lobby.members?.length ?? 0;
             const readyCount = lobby.readyCount ?? 0;
             const playersNeeded = Math.max(memberCount - readyCount, 0);
-            const currentMember = lobby.members?.find((member) => {
-              const id = member.userId?._id || member.userId;
-              return id?.toString() === user?._id;
-            });
-            const isMember = Boolean(currentMember);
             const host = lobby.members?.find((member) => member.isHost);
             const gameName = lobby.gameId?.name || 'Unknown game';
             const isPreferred = preferredGameNames.some((name) => gameName.toLowerCase().includes(name));
-            const isJoining = joiningLobbyId === lobby._id;
-            const handleJoinLobby = () => {
-              if (isMember) {
-                navigate(`/lobbies/${lobby._id}`);
-                return;
-
-              }
-              if (isJoining) {
-                return;
-              }
-              joinLobby(lobby._id);
+            const handleViewLobby = () => {
+              navigate(`/lobbies/${lobby._id}`);
             };
-            const buttonLabel = isMember
-              ? 'Enter lobby'
-              : isJoining
-              ? 'Joining…'
-              : 'Join lobby';
 
             return (
                 <div
@@ -228,11 +204,9 @@ const LobbiesPage = () => {
                   <button
                     type="button"
                     className="primary-button lobby-card__join"
-                    onClick={handleJoinLobby}
-                    aria-disabled={!isMember && isJoining}
-                    disabled={!isMember && isJoining}
+                    onClick={handleViewLobby}
                   >
-                    {buttonLabel}
+                    View lobby
                   </button>
                 </div>
               </div>
