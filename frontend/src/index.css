@@ -1822,37 +1822,6 @@ a:hover {
   color: #fff;
 }
 
-.matchmaking-topline__progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.matchmaking-topline__bar {
-  position: relative;
-  width: 120px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  overflow: hidden;
-}
-
-.matchmaking-topline__bar span {
-  position: absolute;
-  inset: 0;
-  width: 50%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--primary), var(--pink));
-  transition: transform 0.3s ease;
-  transform: translateX(-100%);
-}
-
-.matchmaking-topline__bar span.is-complete {
-  transform: translateX(0%);
-}
-
 .matchmaking-topline__back {
   display: grid;
   place-items: center;
@@ -1886,6 +1855,40 @@ a:hover {
   justify-content: space-between;
   gap: 16px;
 }
+
+.matchmaking-stage__search {
+  width: 100%;
+  display: flex;
+}
+
+.matchmaking-stage__footer--profile {
+  align-items: stretch;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.matchmaking-stage__profile {
+  flex: 1 1 55%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.matchmaking-stage__controls {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.matchmaking-stage__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
 
 .matchmaking-stage__heading {
   display: flex;
@@ -2126,8 +2129,7 @@ a:hover {
 }
 
 .filter-card__field select,
-.filter-card__field input[type='number'],
-.search-preview__schedule input {
+.filter-card__field input[type='number'] {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 8, 28, 0.85);
@@ -2326,33 +2328,6 @@ a:hover {
   font-size: 0.75rem;
 }
 
-.search-preview__weight {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.search-preview__weight input[type='range'] {
-  width: 120px;
-}
-
-.search-preview__schedule {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.search-preview__schedule label {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.search-preview__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
 @media (max-width: 960px) {
   .matchmaking-topline {
     flex-wrap: wrap;
@@ -2368,6 +2343,19 @@ a:hover {
     flex-direction: column;
     align-items: stretch;
   }
+
+  .matchmaking-stage__footer--profile {
+    flex-direction: column;
+  }
+
+  .matchmaking-stage__controls {
+    align-items: stretch;
+  }
+
+  .matchmaking-stage__buttons {
+    justify-content: center;
+    gap: 10px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -2382,6 +2370,11 @@ a:hover {
   .matchmaking-status-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .matchmaking-stage__buttons {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

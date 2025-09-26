@@ -4,6 +4,7 @@ import { FiArrowLeft, FiCheck, FiRefreshCw, FiSearch, FiStar } from 'react-icons
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import getGameArt from '../services/gameArt.js';
+import defaultGameArt from '../assets/games/default-game.svg';
 
 const regionOptions = ['NA', 'EU', 'AS', 'SA', 'OC', 'AF', 'ANY'];
 const modeOptions = [
@@ -75,7 +76,6 @@ const MatchmakingPage = () => {
   const [extraFilters, setExtraFilters] = useState([]);
   const [ageRange, setAgeRange] = useState({ min: 18, max: 32 });
   const [groupSize, setGroupSize] = useState({ min: 1, max: 5 });
-  const [schedule, setSchedule] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [profileNotice, setProfileNotice] = useState(null);
   const [status, setStatus] = useState(null);
@@ -159,35 +159,28 @@ const MatchmakingPage = () => {
 
   const addGame = useCallback((game) => {
     setSelectedGames((prev) => {
-      if (prev.some((entry) => entry.game._id === game._id)) {
+      if (prev.some((selected) => selected._id === game._id)) {
         return prev;
       }
-      return [...prev, { game, weight: 5 }].slice(0, 5);
+      return [...prev, game].slice(0, 5);
     });
   }, []);
 
   const removeGame = useCallback((gameId) => {
-    setSelectedGames((prev) => prev.filter((entry) => entry.game._id !== gameId));
+    setSelectedGames((prev) => prev.filter((selected) => selected._id !== gameId));
   }, []);
 
-  const updateWeight = useCallback((gameId, weight) => {
-    setSelectedGames((prev) =>
-      prev.map((entry) =>
-        entry.game._id === gameId ? { ...entry, weight: Number(weight) } : entry
-      )
-    );
-  }, []);
 
   const toggleGameSelection = useCallback(
     (game) => {
       setSelectedGames((prev) => {
-        if (prev.some((entry) => entry.game._id === game._id)) {
-          return prev.filter((entry) => entry.game._id !== game._id);
+        if (prev.some((selected) => selected._id === game._id)) {
+          return prev.filter((selected) => selected._id !== game._id);
         }
         if (prev.length >= 5) {
           return prev;
         }
-        return [...prev, { game, weight: 5 }];
+        return [...prev, game];
       });
     },
     []
@@ -319,15 +312,15 @@ const MatchmakingPage = () => {
     setFeedback(null);
     try {
       const payload = {
-        games: selectedGames.map((entry) => ({ gameId: entry.game._id, weight: entry.weight })),
+        games: selectedGames.map((game) => ({ gameId: game._id })),
         gameMode: mode,
         regions,
         languages: selectedLanguages,
-        groupSize,
-        scheduledTime: schedule ? new Date(schedule).toISOString() : undefined
+        groupSize
       };
 
       await apiClient.post('/matchmaking', payload);
+      setActiveStep('games');
       setFeedback('Matchmaking request submitted!');
       fetchStatus();
     } catch (err) {
@@ -355,11 +348,11 @@ const MatchmakingPage = () => {
 
   useEffect(() => {
     setProfileDirty(true);
-  }, [selectedGames, playerPreferences, selectedLanguages, behaviourScore, extraFilters, ageRange, regions, mode, groupSize, schedule]);
+  }, [selectedGames, playerPreferences, selectedLanguages, behaviourScore, extraFilters, ageRange, regions, mode, groupSize]);
 
   const handleSaveProfile = () => {
     setLockedProfile({
-      games: selectedGames.map((entry) => ({ gameId: entry.game._id, weight: entry.weight })),
+      games: selectedGames.map((game) => ({ gameId: game._id })),
       playerPreferences,
       behaviourScore,
       extraFilters,
@@ -367,8 +360,7 @@ const MatchmakingPage = () => {
       regions,
       mode,
       languages: selectedLanguages,
-      groupSize,
-      schedule
+      groupSize
     });
     setProfileDirty(false);
     setProfileNotice('Search profile saved and locked for this queue.');
@@ -394,7 +386,6 @@ const MatchmakingPage = () => {
       setExtraFilters([]);
       setGroupSize({ min: 1, max: 5 });
     }
-    setSchedule('');
     setLockedProfile(null);
     setProfileDirty(true);
     setProfileNotice('Filters reset to your defaults.');
@@ -509,6 +500,12 @@ const MatchmakingPage = () => {
   const renderGameSelection = () => (
     <div className="matchmaking-stage">
       <div className="matchmaking-stage__header">
+        <button type="button" className="ghost-button" onClick={() => navigate(-1)}>
+          <FiArrowLeft size={16} /> Back
+        </button>
+      </div>
+      {renderStatusCard()}
+      <div className="matchmaking-stage__search">
         <div className="matchmaking-search">
           <FiSearch size={18} />
           <input
@@ -518,16 +515,12 @@ const MatchmakingPage = () => {
             placeholder="Search for a game"
           />
         </div>
-        <button type="button" className="ghost-button" onClick={() => navigate(-1)}>
-          <FiArrowLeft size={16} /> Back
-        </button>
       </div>
-      {renderStatusCard()}
       <div className="game-gallery">
         {sortedAvailableGames.map((game) => {
-          const isSelected = selectedGames.some((entry) => entry.game._id === game._id);
+          const isSelected = selectedGames.some((selected) => selected._id === game._id);
           const isFavorite = favoriteGameIds.includes(game._id);
-          const art = getGameArt(game);
+          const art = getGameArt(game) || defaultGameArt;
           return (
             <button
               type="button"
@@ -550,7 +543,15 @@ const MatchmakingPage = () => {
                 </span>
               ) : null}
               <div className="game-tile__media">
-                <img src={art} alt={game.name} loading="lazy" />
+                <img
+                  src={art}
+                  alt={game.name}
+                  loading="lazy"
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = defaultGameArt;
+                  }}
+                />
               </div>
               <div className="game-tile__body">
                 <strong>{game.name}</strong>
@@ -775,8 +776,10 @@ const MatchmakingPage = () => {
             })}
           </div>
         </div>
+      </div>
 
-        <div className="filter-card filter-card--profile">
+      <div className="matchmaking-stage__footer matchmaking-stage__footer--profile">
+        <div className="matchmaking-stage__profile">
           <div className="filter-card__heading">
             <h3>Search profile</h3>
             <span>This is what other players will see.</span>
@@ -806,26 +809,24 @@ const MatchmakingPage = () => {
             </div>
             <div className="search-preview__games">
               {selectedGames.length > 0 ? (
-                selectedGames.map((entry) => (
-                  <div key={entry.game._id} className="search-preview__game">
+                selectedGames.map((game) => (
+                  <div key={game._id} className="search-preview__game">
                     <div className="search-preview__game-info">
-                      <img src={getGameArt(entry.game)} alt={entry.game.name} loading="lazy" />
+                      <img
+                        src={getGameArt(game) || defaultGameArt}
+                        alt={game.name}
+                        loading="lazy"
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = defaultGameArt;
+                        }}
+                      />
                       <div>
-                        <span>{entry.game.name}</span>
-                        <small>{entry.game.gameModes?.[0]?.name || 'Mode TBD'}</small>
+                        <span>{game.name}</span>
+                        <small>{game.gameModes?.[0]?.name || 'Mode TBD'}</small>
                       </div>
                     </div>
-                    <div className="search-preview__weight">
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        value={entry.weight}
-                        onChange={(event) => updateWeight(entry.game._id, event.target.value)}
-                      />
-                      <span>{entry.weight}</span>
-                    </div>
-                    <button type="button" className="ghost-button" onClick={() => removeGame(entry.game._id)}>
+                    <button type="button" className="ghost-button" onClick={() => removeGame(game._id)}>
                       Remove
                     </button>
                   </div>
@@ -834,44 +835,35 @@ const MatchmakingPage = () => {
                 <span className="surface__subtitle">Select at least one game to build a profile.</span>
               )}
             </div>
-            <div className="search-preview__schedule">
-              <label htmlFor="matchmaking-schedule">Scheduled time (optional)</label>
-              <input
-                id="matchmaking-schedule"
-                type="datetime-local"
-                value={schedule}
-                onChange={(event) => setSchedule(event.target.value)}
-              />
-            </div>
-            <div className="search-preview__actions">
-              <button type="button" className="ghost-button" onClick={handleResetProfile}>
-                Reset
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={handleSaveProfile}
-                disabled={selectedGames.length === 0}
-              >
-                Save profile
-              </button>
-            </div>
           </div>
         </div>
-      </div>
-      <div className="matchmaking-stage__footer">
-        <div className="matchmaking-stage__hint">
-          {lockedProfile && !profileDirty
-            ? 'Profile locked. Ready when you are!'
-            : 'Save your profile before starting the search.'}
+        <div className="matchmaking-stage__controls">
+          <div className="matchmaking-stage__hint">
+            {lockedProfile && !profileDirty
+              ? 'Profile locked. Ready when you are!'
+              : 'Save your profile before starting the search.'}
+          </div>
+          <div className="matchmaking-stage__buttons">
+            <button type="button" className="ghost-button" onClick={handleResetProfile}>
+              Reset
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={handleSaveProfile}
+              disabled={selectedGames.length === 0}
+            >
+              Save profile
+            </button>
+            <button
+              type="submit"
+              className="primary-button primary-button--lg"
+              disabled={loading || selectedGames.length === 0 || profileDirty}
+            >
+              {loading ? 'Submitting.' : 'Start search'}
+            </button>
+          </div>
         </div>
-        <button
-          type="submit"
-          className="primary-button primary-button--lg"
-          disabled={loading || selectedGames.length === 0 || profileDirty}
-        >
-          {loading ? 'Submitting…' : 'Start search'}
-        </button>
       </div>
     </form>
   );
@@ -882,12 +874,6 @@ const MatchmakingPage = () => {
         <div className="matchmaking-topline__stat">
           <span className="matchmaking-topline__icon">*</span>
           <span>{user?.virtualCurrency ?? 0}</span>
-        </div>
-        <div className="matchmaking-topline__progress">
-          <span>{activeStep === 'games' ? 'Step 1 of 2' : 'Step 2 of 2'}</span>
-          <div className="matchmaking-topline__bar">
-            <span className={activeStep === 'filters' ? 'is-complete' : ''} />
-          </div>
         </div>
         <button
           type="button"
