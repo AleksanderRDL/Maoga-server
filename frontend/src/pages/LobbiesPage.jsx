@@ -175,7 +175,6 @@ const LobbiesPage = () => {
             const gameName = lobby.gameId?.name || 'Unknown game';
             const isPreferred = preferredGameNames.some((name) => gameName.toLowerCase().includes(name));
             const isMock = lobby.isMock;
-            const gameArt = getGameArt(lobby.gameId || {});
             const isJoining = joiningLobbyId === lobby._id;
             const handleJoinLobby = () => {
               if (isMock) {
@@ -184,6 +183,7 @@ const LobbiesPage = () => {
               if (isMember) {
                 navigate(`/lobbies/${lobby._id}`);
                 return;
+
               }
               if (isJoining) {
                 return;
@@ -205,9 +205,6 @@ const LobbiesPage = () => {
                 }`}
                 key={lobby._id}
               >
-                <div className="lobby-card__art">
-                  <img src={gameArt} alt={`${gameName} key art`} loading="lazy" />
-                </div>
                 <div className="lobby-card__body">
                   <div className="lobby-card__header">
                     <h4>{lobby.name}</h4>

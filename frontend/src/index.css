@@ -539,38 +539,20 @@ a:hover {
   background: rgba(19, 12, 43, 0.9);
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px;
+}
+
+.lobby-card__body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   aspect-ratio: 1;
 }
 
-.lobby-card__art {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(160deg, rgba(43, 28, 94, 0.6), rgba(24, 14, 56, 0.9));
-  padding: 24px;
-}
-
-.lobby-card__art img {
-  max-width: 70%;
-  max-height: 70%;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35));
-}
-
-.lobby-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  flex: 0 0 auto;
-}
 
 .lobby-card__header {
   display: flex;
+
   flex-direction: column;
   gap: 4px;
 }
@@ -584,6 +566,7 @@ a:hover {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.6);
 }
+
 
 .lobby-card__meta {
   display: flex;
@@ -599,6 +582,7 @@ a:hover {
 }
 
 .lobby-card--compact {
+  display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
