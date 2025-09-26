@@ -870,20 +870,6 @@ const MatchmakingPage = () => {
 
   return (
     <div className="matchmaking-screen">
-      <div className="matchmaking-topline">
-        <div className="matchmaking-topline__stat">
-          <span className="matchmaking-topline__icon">*</span>
-          <span>{user?.virtualCurrency ?? 0}</span>
-        </div>
-        <button
-          type="button"
-          className="matchmaking-topline__back"
-          onClick={() => (activeStep === 'filters' ? setActiveStep('games') : navigate(-1))}
-        >
-          <FiArrowLeft size={18} />
-        </button>
-      </div>
-
       {activeStep === 'games' ? renderGameSelection() : renderFilters()}
     </div>
   );
