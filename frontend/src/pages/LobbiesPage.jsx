@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { MOCK_ACTIVE_LOBBIES } from '../services/mockLobbies.js';
+import { MOCK_ACTIVE_LOBBIES, isMockLobbyId } from '../services/mockLobbies.js';
 import getGameArt from '../services/gameArt.js';
 
 const LobbiesPage = () => {
@@ -25,7 +25,8 @@ const LobbiesPage = () => {
       setLobbies(response.data?.data?.lobbies || []);
     } catch (err) {
       console.error('Failed to load lobbies', err);
-      setFeedback('Could not load your lobbies.');
+      setFeedback('Showing sample lobbies while we reconnect…');
+      setLobbies([]);
     } finally {
       setLoading(false);
     }
@@ -40,6 +41,11 @@ const LobbiesPage = () => {
       const trimmedId = lobbyId?.trim();
       if (!trimmedId) {
         return false;
+      }
+
+      if (isMockLobbyId(trimmedId)) {
+        navigate(`/lobbies/${trimmedId}`);
+        return true;
       }
 
       setJoiningLobbyId(trimmedId);
@@ -174,12 +180,8 @@ const LobbiesPage = () => {
             const host = lobby.members?.find((member) => member.isHost);
             const gameName = lobby.gameId?.name || 'Unknown game';
             const isPreferred = preferredGameNames.some((name) => gameName.toLowerCase().includes(name));
-            const isMock = lobby.isMock;
             const isJoining = joiningLobbyId === lobby._id;
             const handleJoinLobby = () => {
-              if (isMock) {
-                return;
-              }
               if (isMember) {
                 navigate(`/lobbies/${lobby._id}`);
                 return;
@@ -190,19 +192,17 @@ const LobbiesPage = () => {
               }
               joinLobby(lobby._id);
             };
-            const buttonLabel = isMock
-              ? 'Preview only'
-              : isMember
+            const buttonLabel = isMember
               ? 'Enter lobby'
               : isJoining
               ? 'Joining…'
               : 'Join lobby';
 
             return (
-              <div
-                className={`lobby-card ${isPreferred ? 'lobby-card--preferred' : ''} ${
-                  isMock ? 'lobby-card--mock' : ''
-                }`}
+                <div
+                  className={`lobby-card ${isPreferred ? 'lobby-card--preferred' : ''} ${
+                    lobby.isMock ? 'lobby-card--mock' : ''
+                  }`}
                 key={lobby._id}
               >
                 <div className="lobby-card__body">
@@ -229,7 +229,8 @@ const LobbiesPage = () => {
                     type="button"
                     className="primary-button lobby-card__join"
                     onClick={handleJoinLobby}
-                    aria-disabled={isMock || (!isMember && isJoining)}
+                    aria-disabled={!isMember && isJoining}
+                    disabled={!isMember && isJoining}
                   >
                     {buttonLabel}
                   </button>
