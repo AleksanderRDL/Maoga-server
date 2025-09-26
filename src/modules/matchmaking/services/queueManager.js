@@ -413,7 +413,7 @@ class QueueManager extends EventEmitter {
     for (const [gameId, modeMap] of queueSizes.entries()) {
       const modeObj = {};
       for (const [mode, regionMap] of modeMap.entries()) {
-      // eslint-disable-next-line security/detect-object-injection
+        // eslint-disable-next-line security/detect-object-injection
         modeObj[mode] = Object.fromEntries(regionMap.entries());
       }
       // eslint-disable-next-line security/detect-object-injection
@@ -466,7 +466,9 @@ class QueueManager extends EventEmitter {
     }
 
     if (cleaned > 0) {
-      logger.info('Cleaned up expired or stale match requests from distributed queue', { count: cleaned });
+      logger.info('Cleaned up expired or stale match requests from distributed queue', {
+        count: cleaned
+      });
     }
   }
 
@@ -488,4 +490,3 @@ class QueueManager extends EventEmitter {
 }
 
 module.exports = new QueueManager();
-

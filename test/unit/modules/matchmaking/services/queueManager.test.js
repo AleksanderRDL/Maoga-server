@@ -203,8 +203,16 @@ describe('QueueManager (redis backed)', () => {
   describe('getStats', () => {
     it('aggregates queue sizes across regions', async () => {
       const gameId = new mongoose.Types.ObjectId();
-      const requestNA = buildRequest({ userId: new mongoose.Types.ObjectId(), gameId, region: 'NA' });
-      const requestEU = buildRequest({ userId: new mongoose.Types.ObjectId(), gameId, region: 'EU' });
+      const requestNA = buildRequest({
+        userId: new mongoose.Types.ObjectId(),
+        gameId,
+        region: 'NA'
+      });
+      const requestEU = buildRequest({
+        userId: new mongoose.Types.ObjectId(),
+        gameId,
+        region: 'EU'
+      });
 
       await queueManager.addRequest(requestNA);
       await queueManager.addRequest(requestEU);
@@ -226,10 +234,3 @@ describe('QueueManager (redis backed)', () => {
     });
   });
 });
-
-
-
-
-
-
-

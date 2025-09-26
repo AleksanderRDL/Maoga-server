@@ -213,4 +213,3 @@ if (mergedConfig.logging.showConfig) {
 }
 
 module.exports = mergedConfig;
-

@@ -35,7 +35,6 @@ class MatchmakingService {
     });
   }
 
-
   async submitMatchRequest(userId, criteria) {
     const runPersistence = async (session) => {
       const sessionOptions = session ? { session } : {};
@@ -130,10 +129,13 @@ class MatchmakingService {
 
       if (session && isTransactionNotSupportedError(error)) {
         usedTransactionFallback = true;
-        logger.warn('MongoDB topology lacks transaction support; retrying match request persistence without session', {
-          userId,
-          errorMessage: error.message
-        });
+        logger.warn(
+          'MongoDB topology lacks transaction support; retrying match request persistence without session',
+          {
+            userId,
+            errorMessage: error.message
+          }
+        );
         await session.endSession().catch(() => {});
         session = null;
         matchRequest = await runPersistence(null);
@@ -152,10 +154,13 @@ class MatchmakingService {
     }
 
     if (usedTransactionFallback) {
-      logger.debug('Match request persisted without transaction due to unsupported MongoDB topology', {
-        requestId: matchRequest?._id,
-        userId
-      });
+      logger.debug(
+        'Match request persisted without transaction due to unsupported MongoDB topology',
+        {
+          requestId: matchRequest?._id,
+          userId
+        }
+      );
     }
 
     try {
@@ -184,7 +189,6 @@ class MatchmakingService {
 
     return matchRequest;
   }
-
 
   async cancelMatchRequest(userId, requestId) {
     try {
@@ -432,7 +436,6 @@ class MatchmakingService {
     }
   }
 
-
   async finalizeMatch(matchData) {
     const matchId = matchData?.matchHistory?._id?.toString();
     if (!matchId) {
@@ -503,10 +506,13 @@ class MatchmakingService {
         } catch (error) {
           if (isTransactionNotSupportedError(error)) {
             usedTransactionFallback = true;
-            logger.warn('MongoDB topology lacks transaction support; retrying match finalization without session', {
-              matchId,
-              errorMessage: error.message
-            });
+            logger.warn(
+              'MongoDB topology lacks transaction support; retrying match finalization without session',
+              {
+                matchId,
+                errorMessage: error.message
+              }
+            );
             await session.endSession().catch(() => {});
             session = null;
             finalizationResult = await runFinalization(null);
@@ -520,8 +526,7 @@ class MatchmakingService {
 
       ({ lobbyCreated, lobby, matchHistory: persistedMatchHistory } = finalizationResult || {});
 
-      const finalizedMatchHistory =
-        (await MatchHistory.findById(matchId)) || persistedMatchHistory;
+      const finalizedMatchHistory = (await MatchHistory.findById(matchId)) || persistedMatchHistory;
 
       if (!finalizedMatchHistory) {
         throw new NotFoundError('Match history missing after finalization');
@@ -640,81 +645,79 @@ class MatchmakingService {
     }
   }
 
+  async estimateWaitTime(requestDoc) {
+    const request = requestDoc instanceof MatchRequest ? requestDoc : new MatchRequest(requestDoc);
 
-async estimateWaitTime(requestDoc) {
-  const request = requestDoc instanceof MatchRequest ? requestDoc : new MatchRequest(requestDoc);
+    const userIdString = request.userId
+      ? typeof request.userId.toString === 'function'
+        ? request.userId.toString()
+        : String(request.userId)
+      : null;
 
-  const userIdString = request.userId
-    ? typeof request.userId.toString === 'function'
-      ? request.userId.toString()
-      : String(request.userId)
-    : null;
-
-  if (!userIdString) {
-    logger.warn('estimateWaitTime: userId missing or invalid on request object.', {
-      requestData: requestDoc
-    });
-    return { estimated: 300000, confidence: 'low' };
-  }
-
-  const queueInfo = await queueManager.getUserRequest(userIdString);
-
-  if (!queueInfo) {
-    logger.warn(`estimateWaitTime: No queue info found for user ${userIdString}`);
-    return { estimated: 300000, confidence: 'low' };
-  }
-
-  const stats = await queueManager.getStats();
-  const avgWaitTime = stats.avgWaitTime > 0 ? stats.avgWaitTime : 60000;
-
-  const gameId = queueInfo.gameId.toString();
-  const gameMode = queueInfo.gameMode;
-  const region = queueInfo.region;
-
-  const { size: queueSize, found: queueFound } = await queueManager.getQueueSize(
-    gameId,
-    gameMode,
-    region
-  );
-
-  if (!queueFound) {
-    logger.warn(
-      `estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`
-    );
-  }
-
-  const minGroupSizeForMatch = matchAlgorithmService.config.minGroupSize || 2;
-  let estimatedTime = avgWaitTime;
-
-  if (queueSize > 0) {
-    const playersNeeded = Math.max(0, minGroupSizeForMatch - queueSize);
-    if (playersNeeded === 0) {
-      estimatedTime = avgWaitTime / minGroupSizeForMatch;
-    } else {
-      estimatedTime = avgWaitTime * playersNeeded;
+    if (!userIdString) {
+      logger.warn('estimateWaitTime: userId missing or invalid on request object.', {
+        requestData: requestDoc
+      });
+      return { estimated: 300000, confidence: 'low' };
     }
-  } else {
-    estimatedTime = avgWaitTime * minGroupSizeForMatch;
+
+    const queueInfo = await queueManager.getUserRequest(userIdString);
+
+    if (!queueInfo) {
+      logger.warn(`estimateWaitTime: No queue info found for user ${userIdString}`);
+      return { estimated: 300000, confidence: 'low' };
+    }
+
+    const stats = await queueManager.getStats();
+    const avgWaitTime = stats.avgWaitTime > 0 ? stats.avgWaitTime : 60000;
+
+    const gameId = queueInfo.gameId.toString();
+    const gameMode = queueInfo.gameMode;
+    const region = queueInfo.region;
+
+    const { size: queueSize, found: queueFound } = await queueManager.getQueueSize(
+      gameId,
+      gameMode,
+      region
+    );
+
+    if (!queueFound) {
+      logger.warn(
+        `estimateWaitTime: Queue size not found for ${gameId}-${gameMode}-${region}. Request was for user: ${userIdString}`
+      );
+    }
+
+    const minGroupSizeForMatch = matchAlgorithmService.config.minGroupSize || 2;
+    let estimatedTime = avgWaitTime;
+
+    if (queueSize > 0) {
+      const playersNeeded = Math.max(0, minGroupSizeForMatch - queueSize);
+      if (playersNeeded === 0) {
+        estimatedTime = avgWaitTime / minGroupSizeForMatch;
+      } else {
+        estimatedTime = avgWaitTime * playersNeeded;
+      }
+    } else {
+      estimatedTime = avgWaitTime * minGroupSizeForMatch;
+    }
+
+    estimatedTime = Math.min(estimatedTime, 30 * 60 * 1000);
+    estimatedTime = Math.max(estimatedTime, 10000);
+
+    logger.debug('Estimated wait time calculated', {
+      userId: userIdString,
+      gameId,
+      gameMode,
+      region,
+      queueSize,
+      avgWaitTime,
+      estimatedTime
+    });
+    return {
+      estimated: estimatedTime,
+      confidence: queueSize >= minGroupSizeForMatch ? 'medium' : 'low'
+    };
   }
-
-  estimatedTime = Math.min(estimatedTime, 30 * 60 * 1000);
-  estimatedTime = Math.max(estimatedTime, 10000);
-
-  logger.debug('Estimated wait time calculated', {
-    userId: userIdString,
-    gameId,
-    gameMode,
-    region,
-    queueSize,
-    avgWaitTime,
-    estimatedTime
-  });
-  return {
-    estimated: estimatedTime,
-    confidence: queueSize >= minGroupSizeForMatch ? 'medium' : 'low'
-  };
-}
-
 
   async getStatistics(options = {}) {
     try {
@@ -754,18 +757,3 @@ function isTransactionNotSupportedError(error) {
 }
 
 module.exports = new MatchmakingService();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

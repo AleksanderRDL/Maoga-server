@@ -11,7 +11,6 @@ class LobbyService {
    * Create a lobby from a match
    */
 
-
   async createLobby(matchData, options = {}) {
     try {
       const { matchHistory, participants } = matchData;
@@ -534,8 +533,3 @@ class LobbyService {
 }
 
 module.exports = new LobbyService();
-
-
-
-
-

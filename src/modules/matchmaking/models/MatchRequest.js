@@ -173,4 +173,3 @@ matchRequestSchema.statics.findMatchableRequests = function (
 const MatchRequest = mongoose.model('MatchRequest', matchRequestSchema);
 
 module.exports = MatchRequest;
-

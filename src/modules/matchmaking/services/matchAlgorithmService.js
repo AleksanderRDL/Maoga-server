@@ -108,10 +108,7 @@ class MatchAlgorithmService {
 
       const requiredMinGroupSize = matchParticipants.reduce(
         (max, participant) =>
-          Math.max(
-            max,
-            participant.request?.criteria?.groupSize?.min || this.config.minGroupSize
-          ),
+          Math.max(max, participant.request?.criteria?.groupSize?.min || this.config.minGroupSize),
         this.config.minGroupSize
       );
 
@@ -144,7 +141,6 @@ class MatchAlgorithmService {
 
     return matches;
   }
-
 
   /**
    * Find compatible partners for a primary request
@@ -580,4 +576,3 @@ class MatchAlgorithmService {
 }
 
 module.exports = new MatchAlgorithmService();
-

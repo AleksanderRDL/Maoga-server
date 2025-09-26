@@ -285,4 +285,3 @@ class RedisManager {
 }
 
 module.exports = new RedisManager();
-
