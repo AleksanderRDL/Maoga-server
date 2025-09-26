@@ -161,10 +161,11 @@ a:hover {
 .bottom-nav {
   position: fixed;
   bottom: 24px;
-  left: 32px;
-  right: 32px;
-  transform: none;
-  width: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 64px);
   background: rgba(24, 17, 47, 0.85);
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -172,8 +173,8 @@ a:hover {
   align-items: center;
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 18px;
-  padding: 14px clamp(18px, 4vw, 32px);
+  gap: 16px;
+  padding: 14px 20px;
   backdrop-filter: blur(24px);
   box-shadow: var(--shadow);
   overflow-x: auto;
@@ -199,7 +200,7 @@ a:hover {
   border-radius: 14px;
   color: var(--text-secondary);
   transition: all 0.2s ease;
-  min-width: 96px;
+  min-width: 0;
 }
 
 .bottom-nav__button span {
@@ -524,9 +525,15 @@ a:hover {
 }
 
 .lobby-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.lobby-list--compact {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .lobby-card {
@@ -534,28 +541,62 @@ a:hover {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 18px;
+}
+
+.lobby-card__body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  height: 100%;
 }
+
+
+.lobby-card__header {
+  display: flex;
+
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lobby-card__game {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.lobby-card__mode {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 
 .lobby-card__meta {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 6px;
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
-.lobby-card__actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.lobby-card__join {
+  width: 100%;
+  margin-top: auto;
+  background: #a855f7;
+  box-shadow: 0 12px 30px rgba(168, 85, 247, 0.45);
+}
+
+.lobby-card__join:hover {
+  background: linear-gradient(135deg, var(--primary), var(--pink));
+  box-shadow: 0 10px 25px rgba(124, 92, 255, 0.3);
 }
 
 .lobby-card--compact {
+  display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  padding: 18px;
+  gap: 12px;
+  aspect-ratio: auto;
 }
 
 .empty-state {
@@ -1567,9 +1608,8 @@ a:hover {
   }
 
   .bottom-nav {
-    left: 24px;
-    right: 24px;
-    padding: 12px 24px;
+    max-width: calc(100% - 48px);
+    padding: 12px 18px;
   }
 }
 
@@ -1580,9 +1620,8 @@ a:hover {
 
   .bottom-nav {
     bottom: 16px;
-    left: 12px;
-    right: 12px;
-    padding: 12px 16px;
+    max-width: calc(100% - 24px);
+    padding: 12px 14px;
     gap: 12px;
   }
 
@@ -2334,7 +2373,7 @@ a:hover {
   background: rgba(21, 14, 44, 0.75);
 }
 
-.lobby-card--mock .lobby-card__actions button {
+.lobby-card--mock .lobby-card__join {
   opacity: 0.6;
   cursor: not-allowed;
 }
