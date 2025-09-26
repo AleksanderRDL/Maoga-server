@@ -545,11 +545,14 @@ a:hover {
 .lobby-card__body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  overflow: hidden;
+  aspect-ratio: 1;
 }
+
 
 .lobby-card__header {
   display: flex;
+
   flex-direction: column;
   gap: 4px;
 }
@@ -563,6 +566,7 @@ a:hover {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.6);
 }
+
 
 .lobby-card__meta {
   display: flex;

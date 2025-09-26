@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { MOCK_ACTIVE_LOBBIES } from '../services/mockLobbies.js';
+import getGameArt from '../services/gameArt.js';
 
 const LobbiesPage = () => {
   const navigate = useNavigate();
@@ -182,6 +183,7 @@ const LobbiesPage = () => {
               if (isMember) {
                 navigate(`/lobbies/${lobby._id}`);
                 return;
+
               }
               if (isJoining) {
                 return;
