@@ -7,7 +7,9 @@ import LobbyDetailPage from './pages/LobbyDetailPage.jsx';
 import MatchmakingPage from './pages/MatchmakingPage.jsx';
 import FriendsPage from './pages/FriendsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import PersonalPostPage from './pages/PersonalPostPage.jsx';
 import FeedPage from './pages/FeedPage.jsx';
+import StartPage from './pages/StartPage.jsx';
 import DashboardLayout from './components/DashboardLayout.jsx';
 import SplashScreen from './components/SplashScreen.jsx';
 
@@ -19,7 +21,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <StartPage />;
   }
 
   return children;
@@ -56,6 +58,7 @@ const App = () => {
         <Route path="lobbies/:lobbyId" element={<LobbyDetailPage />} />
         <Route path="feed" element={<FeedPage />} />
         <Route path="friends" element={<FriendsPage />} />
+        <Route path="personal-post" element={<PersonalPostPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

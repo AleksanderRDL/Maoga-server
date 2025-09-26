@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useMemo } from 'react';
-import { useAuth } from '../context/AuthContext.jsx';
 
 dayjs.extend(relativeTime);
 
@@ -48,22 +47,10 @@ const feedMock = [
 ];
 
 const FeedPage = () => {
-  const { user } = useAuth();
-  const displayName = user?.profile?.displayName || user?.username || 'Maogan';
-
   const feed = useMemo(() => feedMock, []);
 
   return (
     <div className="page page--feed">
-      <section className="surface surface--hero">
-        <div className="surface__header">
-          <div>
-            <h2>Welcome back to your feed, {displayName}</h2>
-            <p className="surface__subtitle">Fresh updates from friends and the games you follow.</p>
-          </div>
-        </div>
-      </section>
-
       <main className="news-feed">
         {feed.map((item) => (
           <article key={item.id} className="surface surface--post">

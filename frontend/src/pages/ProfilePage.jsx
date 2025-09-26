@@ -13,41 +13,8 @@ const socialPlatforms = [
   { id: 'psn', label: 'PlayStation', placeholder: 'PSN ID' }
 ];
 
-const defaultFeed = [
-  {
-    id: 'feed1',
-    title: 'Reached Platinum support',
-    description: 'Thanks to the squad! Time to learn jungle next.',
-    timestamp: '2h ago'
-  },
-  {
-    id: 'feed2',
-    title: 'Unlocked Riot buddy pass',
-    description: 'Invite sent to Maria. 1 more token available.',
-    timestamp: '1d ago'
-  }
-];
-
-const profileTips = [
-  {
-    id: 'tip1',
-    title: 'Complete your bio',
-    description: 'A few personal lines help squadmates connect faster.'
-  },
-  {
-    id: 'tip2',
-    title: 'Add more languages',
-    description: 'Broaden your matchmaking pool with secondary languages.'
-  },
-  {
-    id: 'tip3',
-    title: 'Link socials',
-    description: 'Make it easier for friends to coordinate outside Maoga.'
-  }
-];
-
 const ProfilePage = () => {
-  const { user, refreshProfile, logout } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [competitiveness, setCompetitiveness] = useState('balanced');
@@ -63,8 +30,6 @@ const ProfilePage = () => {
   const [gameSearch, setGameSearch] = useState('');
   const [loadingGameOptions, setLoadingGameOptions] = useState(false);
   const [gameSearchError, setGameSearchError] = useState(null);
-  const [feedEntries, setFeedEntries] = useState(defaultFeed);
-  const [feedDraft, setFeedDraft] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [localNotice, setLocalNotice] = useState(null);
   const [updating, setUpdating] = useState(false);
@@ -236,23 +201,6 @@ const ProfilePage = () => {
     setLinkedGames((prev) => prev.filter((game) => game.id !== gameId));
   };
 
-  const addFeedEntry = (event) => {
-    event.preventDefault();
-    if (!feedDraft.trim()) {
-      return;
-    }
-    setFeedEntries((prev) => [
-      {
-        id: `feed-${Date.now()}`,
-        title: feedDraft,
-        description: 'Shared just now',
-        timestamp: 'Just now'
-      },
-      ...prev
-    ]);
-    setFeedDraft('');
-    setLocalNotice('Posted to your personal feed locally. TODO: connect to social feed service.');
-  };
 
   if (!user) {
     return null;
@@ -262,22 +210,8 @@ const ProfilePage = () => {
     <div className="page page--profile">
       <div className="profile-layout">
         <div className="profile-main">
-          <section className="surface surface--hero">
-            <div className="surface__header">
-              <div>
-                <h2>Shape your vibe</h2>
-                <p className="surface__subtitle">
-                  Update your identity, connect socials and share your highlights.
-                </p>
-              </div>
-              <button type="button" className="icon-button" onClick={logout}>
-                ⇦
-              </button>
-            </div>
-            {feedback ? <div className="page__feedback">{feedback}</div> : null}
-            {localNotice ? <div className="page__notice">{localNotice}</div> : null}
-          </section>
-
+          {feedback ? <div className="page__feedback">{feedback}</div> : null}
+          {localNotice ? <div className="page__notice">{localNotice}</div> : null}
           <section className="surface">
             <div className="surface__header">
               <h3>Profile basics</h3>
@@ -451,72 +385,8 @@ const ProfilePage = () => {
               ))}
             </div>
           </section>
-
-          <section className="surface">
-            <div className="surface__header">
-              <div>
-                <h3>Personal feed</h3>
-                <p className="surface__subtitle">Share highlights and achievements with your friends.</p>
-              </div>
-            </div>
-            <form className="feed-form" onSubmit={addFeedEntry}>
-              <textarea
-                value={feedDraft}
-                onChange={(event) => setFeedDraft(event.target.value)}
-                placeholder="Share what you're proud of..."
-              />
-              <button type="submit" className="primary-button">
-                Post update
-              </button>
-            </form>
-            <ul className="feed-list">
-              {feedEntries.map((entry) => (
-                <li key={entry.id}>
-                  <strong>{entry.title}</strong>
-                  <p>{entry.description}</p>
-                  <span>{entry.timestamp}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
         </div>
 
-        <aside className="profile-sidebar">
-          <section className="surface surface--profile">
-            <div className="surface__header">
-              <h3>Matchmaking defaults</h3>
-              <span className="surface__subtitle">Used as the baseline for quick searches.</span>
-            </div>
-            <ul className="profile-overview">
-              <li>
-                <span className="label">Competitiveness</span>
-                <strong>{competitiveness}</strong>
-              </li>
-              <li>
-                <span className="label">Regions</span>
-                <strong>{regions || 'Set your regions'}</strong>
-              </li>
-              <li>
-                <span className="label">Languages</span>
-                <strong>{languages || 'Add a language'}</strong>
-              </li>
-            </ul>
-          </section>
-
-          <section className="surface surface--spotlight">
-            <div className="surface__header">
-              <h3>Profile tips</h3>
-            </div>
-            <ul className="news-list">
-              {profileTips.map((tip) => (
-                <li key={tip.id}>
-                  <strong>{tip.title}</strong>
-                  <p>{tip.description}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </aside>
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ const AuthPage = ({ mode = 'login' }) => {
   const isLogin = formMode === 'login';
 
   return (
-    <div className="auth-shell">
+    <div className="auth-shell route-transition">
       <div className="auth-card">
         <div className="auth-card__header">
           <h1>Welcome to Maoga</h1>
@@ -160,3 +160,4 @@ const AuthPage = ({ mode = 'login' }) => {
 };
 
 export default AuthPage;
+

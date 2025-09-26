@@ -3,7 +3,7 @@ import { PiCompassFill } from 'react-icons/pi';
 import { RiTeamFill } from 'react-icons/ri';
 import { TbSwords } from 'react-icons/tb';
 import { FaUserAstronaut, FaUserFriends } from 'react-icons/fa';
-import { MdOutlineNewspaper } from 'react-icons/md';
+import { MdOutlineNewspaper, MdOutlineEditNote } from 'react-icons/md';
 
 const navItems = [
   { label: 'Home', icon: PiCompassFill, to: '/' },
@@ -11,6 +11,7 @@ const navItems = [
   { label: 'Lobbies', icon: RiTeamFill, to: '/lobbies' },
   { label: 'Feed', icon: MdOutlineNewspaper, to: '/feed' },
   { label: 'Friends', icon: FaUserFriends, to: '/friends' },
+  { label: 'Personal post', icon: MdOutlineEditNote, to: '/personal-post' },
   { label: 'Profile', icon: FaUserAstronaut, to: '/profile' }
 ];
 

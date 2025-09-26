@@ -6,20 +6,8 @@ import StatPill from './StatPill.jsx';
 
 const DashboardLayout = () => {
   const { user, logout } = useAuth();
-  const location = useLocation();
   const navigate = useNavigate();
-
-  const displayName = user?.profile?.displayName || user?.username || 'Player';
-  const subtitleMap = {
-    '/': 'Connect, compete and belong',
-    '/matchmaking': 'Tune your vibe and find the perfect lobby',
-    '/lobbies': 'Coordinate with your squads',
-    '/feed': 'Catch up with your crew',
-    '/friends': 'Grow your circle and stay in touch',
-    '/profile': 'Fine-tune your presence'
-  };
-
-  const subtitle = subtitleMap[location.pathname] || 'Welcome back';
+  const location = useLocation();
 
   return (
     <div className="app-shell">
@@ -34,14 +22,10 @@ const DashboardLayout = () => {
             </button>
           </div>
         </header>
-        <section className="app-hero">
-          <div>
-            <h1 className="app-hero__title">Hey {displayName}! 👾</h1>
-            <p className="app-hero__subtitle">{subtitle}</p>
-          </div>
-        </section>
         <main className="app-content">
-          <Outlet />
+          <div key={location.pathname} className="route-transition">
+            <Outlet />
+          </div>
         </main>
         <BottomNav />
       </div>

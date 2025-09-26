@@ -43,27 +43,6 @@ const mockFriends = [
   }
 ];
 
-const mockSuggestions = [
-  {
-    id: 'sg1',
-    name: 'Jamie',
-    handle: '@jamjam',
-    mutualGames: ['Valorant', 'League of Legends']
-  },
-  {
-    id: 'sg2',
-    name: 'Rowan',
-    handle: '@rowbot',
-    mutualGames: ['Baldur\'s Gate 3']
-  },
-  {
-    id: 'sg3',
-    name: 'Kei',
-    handle: '@keiko',
-    mutualGames: ['Overwatch 2', 'Apex Legends']
-  }
-];
-
 const FriendsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -71,10 +50,7 @@ const FriendsPage = () => {
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [friendMessages, setFriendMessages] = useState({});
   const [messageDraft, setMessageDraft] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState(mockSuggestions);
   const [loadingFriends, setLoadingFriends] = useState(false);
-  const [addingFriend, setAddingFriend] = useState(false);
   const [notice, setNotice] = useState(null);
 
   const loadFriends = useCallback(async () => {
@@ -118,20 +94,6 @@ const FriendsPage = () => {
     }
   }, [friends, selectedFriend]);
 
-  useEffect(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      setSearchResults(mockSuggestions);
-      return;
-    }
-    const results = mockSuggestions.filter(
-      (suggestion) =>
-        suggestion.name.toLowerCase().includes(query) ||
-        suggestion.handle.toLowerCase().includes(query) ||
-        suggestion.mutualGames.some((game) => game.toLowerCase().includes(query))
-    );
-    setSearchResults(results);
-  }, [searchQuery]);
 
   const selectedMessages = useMemo(() => {
     if (!selectedFriend) {
@@ -166,19 +128,6 @@ const FriendsPage = () => {
     setNotice('Message queued. Chat service integration coming soon.');
   };
 
-  const handleAddFriend = async (suggestion) => {
-    setAddingFriend(true);
-    setNotice(null);
-    try {
-      await apiClient.post('/friends', { username: suggestion.handle.replace('@', '') });
-      setNotice(`Friend request sent to ${suggestion.name}!`);
-    } catch (err) {
-      console.info('Friend request endpoint unavailable yet. Mocking success.', err.message);
-      setNotice(`Friend request sent to ${suggestion.name}!`);
-    } finally {
-      setAddingFriend(false);
-    }
-  };
 
   const handleNavigateToMatchmaking = () => {
     if (!selectedFriend) {
@@ -299,47 +248,9 @@ const FriendsPage = () => {
               <p>Select a friend to see their profile and chat.</p>
             </section>
           )}
+          {notice ? <div className="page__notice">{notice}</div> : null}
         </main>
 
-        <aside className="friends-suggestions">
-          <section className="surface">
-            <div className="surface__header surface__header--stack">
-              <div>
-                <h3>Find new friends</h3>
-                <p className="surface__subtitle">Search for players who share your favourite games.</p>
-              </div>
-            </div>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search handles or games"
-            />
-            <ul className="friend-suggestions">
-              {searchResults.map((suggestion) => (
-                <li key={suggestion.id}>
-                  <div>
-                    <strong>{suggestion.name}</strong>
-                    <span>{suggestion.handle}</span>
-                    <p>{suggestion.mutualGames.join(', ')}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAddFriend(suggestion)}
-                    disabled={addingFriend}
-                  >
-                    Add friend
-                  </button>
-                </li>
-              ))}
-              {searchResults.length === 0 ? (
-                <li className="friend-suggestions__empty">No matches found yet.</li>
-              ) : null}
-            </ul>
-          </section>
-
-          {notice ? <div className="page__notice">{notice}</div> : null}
-        </aside>
       </div>
     </div>
   );
