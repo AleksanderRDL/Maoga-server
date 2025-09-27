@@ -324,37 +324,7 @@
 
 ### Phase 3: Feature Enrichment
 
-#### Sprint 9: Advanced Matchmaking Features
-
-* **Technical Steps & Considerations**:
-    * **Algorithm Enhancements (`MatchAlgorithmService`)**:
-        * **Multi-game matching**: Modify algorithm to consider `MatchRequest.criteria.games` (array with weights). `calculateGameMatchScore` needs to use these weights.
-        * **Tiered matching (fallbacks)**: Formalize and implement criteria relaxation strategy (`relaxCriteria` function in `MatchmakingService`). `MatchRequest` needs `relaxationLevel` and `relaxationTimestamp`. Periodically check and relax criteria for long-waiting requests.
-        * **Region/Language matching**: Implement `calculateRegionMatchScore` and `calculateLanguageMatchScore` thoroughly, using `User.preferences` and `MatchRequest.criteria`.
-    * **Planned Matchmaking**:
-        * Handle `MatchRequest.criteria.scheduledTime`. `MatchmakingService` needs a separate queue/logic for these, triggering matching closer to `scheduledTime`.
-    * **Pre-made Group Matchmaking**:
-        * Utilize `MatchRequest.preselectedUsers`. Algorithm must try to keep these groups intact. Implement `groupPreselectedUsers` logic.
-        * API to add friends to an active matchmaking request (`/api/matchmaking/{requestId}/friends`).
-    * **Performance Testing & Optimization**:
-        * Develop more complex test data for the matchmaking algorithm.
-        * Profile the matchmaking process under simulated load. Optimize database queries and algorithmic complexity.
-        * **Logging (Key Consideration 1)**: Log detailed metrics about matchmaking rounds: number of users processed, average compatibility scores, time taken, relaxation levels reached.
-    * **Idempotency (Key Consideration 4)**: Review "add friends to matchmaking" and other update operations for idempotency.
-    * **Testing (Key Consideration 7)**: Create specific test cases for multi-game, tiered matching, scheduled matching, and group matchmaking scenarios.
-    * **API Documentation**: Update any changes to matchmaking request/response.
-* **Key Tests to Pass for Delivery**:
-    1.  **Algorithm Validation (Expanded Scenarios)**:
-        * **Multi-game**: Users selecting multiple games with different weights are matched based on shared high-priority games or a combination reflecting weights.
-        * **Tiered Matching/Relaxation**: Long-waiting requests show evidence of criteria relaxation (e.g., by inspecting request state or logs) and eventually find matches they wouldn't have with initial strict criteria.
-        * **Region/Language**: Matches correctly prioritize users with "strict" overlapping preferences, then "preferred," then "any."
-        * **Planned Matchmaking**: Requests with `scheduledTime` are processed at/near the scheduled time and not immediately.
-        * **Pre-made Group**: Groups submitting a request are kept together, and the system finds the remaining players to fill the lobby.
-    2.  **API Tests**: `/api/matchmaking/{requestId}/friends` endpoint successfully adds friends to an ongoing matchmaking request.
-    3.  Performance of the advanced algorithm with more complex data sets is within acceptable limits for this stage.
-    4.  Logging shows details of criteria relaxation and weighted considerations.
-
-#### Sprint 10: Social Features Enhancement
+#### Sprint 9: Social Features Enhancement
 
 * **Technical Steps & Considerations**:
     * **Full Friend Workflow (`FriendService`, `FriendController`)**:
@@ -401,6 +371,38 @@
     4.  **User Activity Logging**: Key social actions (friend added, user blocked, DM sent - metadata only) are correctly logged in `UserActivity`.
     5.  **Karma System**: Users can submit karma for an interaction; target user's karma points are updated; basic abuse prevention (e.g., one karma submission per interaction) is in place.
     6.  Test that appropriate notifications are triggered for friend requests/acceptances.
+
+#### Sprint 10: Advanced Matchmaking Features
+
+* **Technical Steps & Considerations**:
+    * **Algorithm Enhancements (`MatchAlgorithmService`)**:
+        * **Multi-game matching**: Modify algorithm to consider `MatchRequest.criteria.games` (array with weights). `calculateGameMatchScore` needs to use these weights.
+        * **Tiered matching (fallbacks)**: Formalize and implement criteria relaxation strategy (`relaxCriteria` function in `MatchmakingService`). `MatchRequest` needs `relaxationLevel` and `relaxationTimestamp`. Periodically check and relax criteria for long-waiting requests.
+        * **Region/Language matching**: Implement `calculateRegionMatchScore` and `calculateLanguageMatchScore` thoroughly, using `User.preferences` and `MatchRequest.criteria`.
+    * **Planned Matchmaking**:
+        * Handle `MatchRequest.criteria.scheduledTime`. `MatchmakingService` needs a separate queue/logic for these, triggering matching closer to `scheduledTime`.
+    * **Pre-made Group Matchmaking**:
+        * Utilize `MatchRequest.preselectedUsers`. Algorithm must try to keep these groups intact. Implement `groupPreselectedUsers` logic.
+        * API to add friends to an active matchmaking request (`/api/matchmaking/{requestId}/friends`).
+    * **Performance Testing & Optimization**:
+        * Develop more complex test data for the matchmaking algorithm.
+        * Profile the matchmaking process under simulated load. Optimize database queries and algorithmic complexity.
+        * **Logging (Key Consideration 1)**: Log detailed metrics about matchmaking rounds: number of users processed, average compatibility scores, time taken, relaxation levels reached.
+    * **Idempotency (Key Consideration 4)**: Review "add friends to matchmaking" and other update operations for idempotency.
+    * **Testing (Key Consideration 7)**: Create specific test cases for multi-game, tiered matching, scheduled matching, and group matchmaking scenarios.
+    * **API Documentation**: Update any changes to matchmaking request/response.
+* **Key Tests to Pass for Delivery**:
+    1.  **Algorithm Validation (Expanded Scenarios)**:
+        * **Multi-game**: Users selecting multiple games with different weights are matched based on shared high-priority games or a combination reflecting weights.
+        * **Tiered Matching/Relaxation**: Long-waiting requests show evidence of criteria relaxation (e.g., by inspecting request state or logs) and eventually find matches they wouldn't have with initial strict criteria.
+        * **Region/Language**: Matches correctly prioritize users with "strict" overlapping preferences, then "preferred," then "any."
+        * **Planned Matchmaking**: Requests with `scheduledTime` are processed at/near the scheduled time and not immediately.
+        * **Pre-made Group**: Groups submitting a request are kept together, and the system finds the remaining players to fill the lobby.
+    2.  **API Tests**: `/api/matchmaking/{requestId}/friends` endpoint successfully adds friends to an ongoing matchmaking request.
+    3.  Performance of the advanced algorithm with more complex data sets is within acceptable limits for this stage.
+    4.  Logging shows details of criteria relaxation and weighted considerations.
+
+
 
 #### Sprint 11: Rich Media & Content
 
