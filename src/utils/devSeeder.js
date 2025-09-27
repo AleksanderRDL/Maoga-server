@@ -1309,7 +1309,10 @@ function buildNotificationData(seed, userMap, lobbyMap) {
   const data = {};
 
   if (seed.data?.entityType === 'user') {
-    const targetUser = ensureUser(userMap, seed.data.username || seed.data.user || seed.data.targetUsername);
+    const targetUser = ensureUser(
+      userMap,
+      seed.data.username || seed.data.user || seed.data.targetUsername
+    );
     data.entityType = 'user';
     data.entityId = targetUser._id;
   } else if (seed.data?.entityType === 'lobby' || seed.lobbyName) {
