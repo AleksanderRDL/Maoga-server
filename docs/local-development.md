@@ -20,10 +20,11 @@ This document explains how to run the Maoga stack (backend + frontend) locally w
 When `npm run dev` is running, the API listens on `http://localhost:3000` and the frontend on `http://localhost:5173`. Update `frontend/.env` if you need to target a different API origin.
 
 ## Preloaded development data
-- `npm run dev` seeds the local Mongo database with sample games, six user accounts, active lobbies, and active matchmaking searches once the backend connects.
-- Seeded accounts (password `PlayTogether123!`): `brimstone@maoga.test`, `aurora@maoga.test`, `viper@maoga.test`, `pixelwave@maoga.test`, `supportive@maoga.test`, `shotcaller@maoga.test`.
+- `npm run dev` seeds the local database with sample games, six user accounts, active lobbies, matchmaking searches, rich friendship graphs, notification inbox entries, and seeded chat conversations once the backend connects.
+- Seeded accounts (password `PlayTogether123!`): `brimstone@maoga.dev`, `aurora@maoga.dev`, `viper@maoga.dev`, `pixelwave@maoga.dev`, `supportive@maoga.dev`, `shotcaller@maoga.dev`.
 - Control the behaviour with environment flags: `SKIP_DEV_SEED=true` skips seeding, `ENABLE_DEV_SEED=true` forces it outside development, `FAIL_ON_DEV_SEED_ERROR=true` makes startup fail if the seeding script throws.
-- Example lobbies created on boot: `Valorant Night Ranked`, `Summoner's Rift Flex Squad`, and `Fortnite Zero Build Friday`.
+- Example lobbies created on boot: `Valorant Night Ranked`, `Summoner's Rift Flex Squad`, and `Fortnite Zero Build Friday`. Each lobby also links to a seeded chat thread so you can view real-time conversation flows immediately.
+- When local infrastructure is unavailable the backend automatically falls back to in-memory services: set `REDIS_ALLOW_MOCK_FALLBACK=true` to enable the Redis mock (default in `.env`) and `DB_ALLOW_IN_MEMORY_FALLBACK=true` to allow a temporary MongoDB instance via `mongodb-memory-server`.
 
 ## Tests and linting
 - `npm test` executes the backend test suite (Mocha + SuperTest) with the proper environment flags.

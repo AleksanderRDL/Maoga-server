@@ -66,6 +66,13 @@ const baseConfig = {
   },
   database: {
     debug: parseBoolean(process.env.MONGOOSE_DEBUG, env === 'development'),
+    allowInMemoryFallback: parseBoolean(
+      process.env.DB_ALLOW_IN_MEMORY_FALLBACK,
+      env !== 'production'
+    ),
+    memory: {
+      dbName: process.env.MONGODB_MEMORY_DB_NAME || 'maoga_dev_memory'
+    },
     // Default options that can be overridden by environment-specific files
     options: {
       serverSelectionTimeoutMS: 5000,
@@ -181,7 +188,13 @@ const mergedConfig = {
         ? 'mongodb://localhost:27017/maoga_dev'
         : 'mongodb://localhost:27017/maoga_prod_default'), // Default for prod if not set
     options: { ...baseConfig.database.options, ...envConfig.database?.options },
-    debug: envConfig.database?.debug ?? baseConfig.database.debug
+    debug: envConfig.database?.debug ?? baseConfig.database.debug,
+    allowInMemoryFallback:
+      envConfig.database?.allowInMemoryFallback ?? baseConfig.database.allowInMemoryFallback,
+    memory: {
+      ...baseConfig.database.memory,
+      ...envConfig.database?.memory
+    }
   }
 };
 
