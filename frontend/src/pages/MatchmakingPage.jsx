@@ -14,30 +14,59 @@ const modeOptions = [
   { value: 'custom', label: 'Custom' }
 ];
 
-const playerPreferenceOptions = [
-  { id: 'voice-chat', label: 'Voice chat' },
-  { id: 'competitive', label: 'Competitive' },
-  { id: 'verified', label: 'Verified' },
-  { id: 'crossplay', label: 'Crossplay' }
+const regionPreferenceOptions = [
+  { value: 'strict', label: 'Strict' },
+  { value: 'preferred', label: 'Preferred' },
+  { value: 'any', label: 'Any' }
 ];
 
-const languageOptions = ['English', 'Danish', 'German', 'Italian', 'Polish', 'Slovak', 'Spanish', 'Swedish', 'French'];
-
-const behaviourScoreOptions = ['+1000', '+3000', '+5000', '+7000', '+9000'];
-
-const extraFilterOptions = [
-  { id: 'crossplay-enabled', label: 'Crossplay Enabled' },
-  { id: 'weekends-only', label: 'Weekends only' },
-  { id: 'time-flexible', label: 'Time flexible' },
-  { id: 'quick-games', label: 'Quick games' },
-  { id: 'coach', label: 'Coach' },
-  { id: 'pc', label: 'PC' },
-  { id: 'console', label: 'Console' },
-  { id: 'mobile', label: 'Mobile' }
+const languagePreferenceOptions = [
+  { value: 'strict', label: 'Strict' },
+  { value: 'preferred', label: 'Preferred' },
+  { value: 'any', label: 'Any' }
 ];
 
-const AGE_MIN = 13;
-const AGE_MAX = 70;
+const skillPreferenceOptions = [
+  { value: 'similar', label: 'Similar skill' },
+  { value: 'any', label: 'Any skill' }
+];
+
+const languageOptions = [
+  { value: 'en', label: 'English' },
+  { value: 'da', label: 'Danish' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pl', label: 'Polish' },
+  { value: 'sk', label: 'Slovak' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'sv', label: 'Swedish' },
+  { value: 'fr', label: 'French' }
+];
+
+const normalizeLanguageValue = (value) => {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const lowerValue = trimmed.toLowerCase();
+  const directMatch = languageOptions.find((option) => option.value === lowerValue);
+  if (directMatch) {
+    return directMatch.value;
+  }
+  const labelMatch = languageOptions.find(
+    (option) => option.label.toLowerCase() === lowerValue
+  );
+  if (labelMatch) {
+    return labelMatch.value;
+  }
+  if (lowerValue.length >= 2 && lowerValue.length <= 5) {
+    return lowerValue;
+  }
+  return null;
+};
 
 const formatDuration = (ms) => {
   if (!ms || Number.isNaN(ms)) {
@@ -52,9 +81,11 @@ const formatDuration = (ms) => {
   return `${seconds}s`;
 };
 
-const findLabel = (collection, id) => collection.find((item) => item.id === id)?.label || id;
-
 const getModeLabel = (value) => modeOptions.find((option) => option.value === value)?.label || value;
+
+const getLanguageLabel = (value) => languageOptions.find((option) => option.value === value)?.label || value;
+
+const getOptionLabel = (options, value) => options.find((option) => option.value === value)?.label || value;
 
 const MatchmakingPage = () => {
   const location = useLocation();
@@ -70,11 +101,11 @@ const MatchmakingPage = () => {
   const [favoriteGameIds, setFavoriteGameIds] = useState([]);
   const [mode, setMode] = useState('casual');
   const [regions, setRegions] = useState(['ANY']);
-  const [selectedLanguages, setSelectedLanguages] = useState(['English']);
-  const [playerPreferences, setPlayerPreferences] = useState([]);
-  const [behaviourScore, setBehaviourScore] = useState(behaviourScoreOptions[0]);
-  const [extraFilters, setExtraFilters] = useState([]);
-  const [ageRange, setAgeRange] = useState({ min: 18, max: 32 });
+  const [regionPreference, setRegionPreference] = useState('preferred');
+  const [languagePreference, setLanguagePreference] = useState('any');
+  const [skillPreference, setSkillPreference] = useState('similar');
+  const [selectedLanguages, setSelectedLanguages] = useState(['en']);
+  const [scheduledTime, setScheduledTime] = useState('');
   const [groupSize, setGroupSize] = useState({ min: 1, max: 5 });
   const [feedback, setFeedback] = useState(null);
   const [profileNotice, setProfileNotice] = useState(null);
@@ -104,9 +135,22 @@ const MatchmakingPage = () => {
       setRegions(prefs.regions);
     }
 
-    if (Array.isArray(prefs.languages) && prefs.languages.length > 0) {
-      setSelectedLanguages(prefs.languages.slice(0, 5));
+    const normalizedLanguages = Array.isArray(prefs.languages)
+      ? prefs.languages
+          .map((language) => normalizeLanguageValue(language))
+          .filter(Boolean)
+      : [];
+
+    if (normalizedLanguages.length > 0) {
+      setSelectedLanguages(normalizedLanguages.slice(0, 10));
+    } else {
+      setSelectedLanguages(['en']);
     }
+
+    setRegionPreference('preferred');
+    setLanguagePreference('any');
+    setSkillPreference('similar');
+    setScheduledTime('');
 
     if (prefs.groupSize?.min || prefs.groupSize?.max) {
       setGroupSize({
@@ -115,41 +159,15 @@ const MatchmakingPage = () => {
       });
     }
 
-    if (prefs.ageRange?.min || prefs.ageRange?.max) {
-      setAgeRange({
-        min: Math.max(AGE_MIN, prefs.ageRange.min || AGE_MIN),
-        max: Math.min(AGE_MAX, prefs.ageRange.max || AGE_MAX)
-      });
-    }
-
-    if (typeof prefs.behaviourScore === 'string' && behaviourScoreOptions.includes(prefs.behaviourScore)) {
-      setBehaviourScore(prefs.behaviourScore);
-    }
-
-    if (Array.isArray(prefs.playerPreferences)) {
-      setPlayerPreferences(prefs.playerPreferences);
-    }
-
-    if (Array.isArray(prefs.extraFilters)) {
-      setExtraFilters(prefs.extraFilters);
-    }
-
     setInitialFilters({
       mode: prefs.competitiveness === 'competitive' ? 'ranked' : prefs.competitiveness === 'balanced' ? 'competitive' : 'casual',
       regions: Array.isArray(prefs.regions) && prefs.regions.length > 0 ? prefs.regions : ['ANY'],
-      selectedLanguages: Array.isArray(prefs.languages) && prefs.languages.length > 0 ? prefs.languages.slice(0, 5) : ['English'],
-      ageRange: prefs.ageRange?.min || prefs.ageRange?.max
-        ? {
-            min: Math.max(AGE_MIN, prefs.ageRange.min || AGE_MIN),
-            max: Math.min(AGE_MAX, prefs.ageRange.max || AGE_MAX)
-          }
-        : { min: 18, max: 32 },
-      behaviourScore:
-        typeof prefs.behaviourScore === 'string' && behaviourScoreOptions.includes(prefs.behaviourScore)
-          ? prefs.behaviourScore
-          : behaviourScoreOptions[0],
-      playerPreferences: Array.isArray(prefs.playerPreferences) ? prefs.playerPreferences : [],
-      extraFilters: Array.isArray(prefs.extraFilters) ? prefs.extraFilters : [],
+      regionPreference: 'preferred',
+      languagePreference: 'any',
+      skillPreference: 'similar',
+      selectedLanguages:
+        normalizedLanguages.length > 0 ? normalizedLanguages.slice(0, 10) : ['en'],
+      scheduledTime: '',
       groupSize: {
         min: prefs.groupSize?.min || 1,
         max: prefs.groupSize?.max || Math.max(prefs.groupSize?.min || 1, 5)
@@ -192,31 +210,23 @@ const MatchmakingPage = () => {
     );
   }, []);
 
-  const togglePreference = useCallback((id) => {
-    setPlayerPreferences((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  }, []);
-
   const toggleLanguage = useCallback((language) => {
+    const normalized = normalizeLanguageValue(language);
+    if (!normalized) {
+      return;
+    }
     setSelectedLanguages((prev) => {
-      if (prev.includes(language)) {
+      if (prev.includes(normalized)) {
         if (prev.length === 1) {
           return prev;
         }
-        return prev.filter((item) => item !== language);
+        return prev.filter((item) => item !== normalized);
       }
-      if (prev.length >= 5) {
+      if (prev.length >= 10) {
         return prev;
       }
-      return [...prev, language];
+      return [...prev, normalized];
     });
-  }, []);
-
-  const toggleExtraFilter = useCallback((id) => {
-    setExtraFilters((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
   }, []);
 
   const toggleRegion = useCallback((region) => {
@@ -377,14 +387,17 @@ const MatchmakingPage = () => {
       const payload = {
         games: lockedProfile.games,
         gameMode: lockedProfile.mode,
+        regionPreference: lockedProfile.regionPreference,
         regions: lockedProfile.regions,
+        languagePreference: lockedProfile.languagePreference,
         languages: lockedProfile.languages,
-        groupSize: lockedProfile.groupSize,
-        playerPreferences: lockedProfile.playerPreferences,
-        behaviourScore: lockedProfile.behaviourScore,
-        extraFilters: lockedProfile.extraFilters,
-        ageRange: lockedProfile.ageRange
+        skillPreference: lockedProfile.skillPreference,
+        groupSize: lockedProfile.groupSize
       };
+
+      if (lockedProfile.scheduledTime) {
+        payload.scheduledTime = lockedProfile.scheduledTime;
+      }
 
       const response = await apiClient.post('/matchmaking', payload);
       setFeedback('Matchmaking request submitted!');
@@ -421,19 +434,20 @@ const MatchmakingPage = () => {
 
   useEffect(() => {
     setProfileDirty(true);
-  }, [selectedGames, playerPreferences, selectedLanguages, behaviourScore, extraFilters, ageRange, regions, mode, groupSize]);
+  }, [selectedGames, selectedLanguages, regions, regionPreference, languagePreference, skillPreference, mode, groupSize, scheduledTime]);
 
   const handleSaveProfile = () => {
+    const scheduledISO = scheduledTime ? new Date(scheduledTime).toISOString() : '';
     setLockedProfile({
       games: selectedGames.map((game) => ({ gameId: game._id })),
-      playerPreferences,
-      behaviourScore,
-      extraFilters,
-      ageRange,
+      regionPreference,
       regions,
       mode,
+      languagePreference,
+      skillPreference,
       languages: selectedLanguages,
-      groupSize
+      groupSize,
+      scheduledTime: scheduledISO
     });
     setProfileDirty(false);
     setProfileNotice('Search profile saved and locked for this queue.');
@@ -443,20 +457,20 @@ const MatchmakingPage = () => {
     if (initialFilters) {
       setMode(initialFilters.mode);
       setRegions(initialFilters.regions);
+      setRegionPreference(initialFilters.regionPreference);
+      setLanguagePreference(initialFilters.languagePreference);
+      setSkillPreference(initialFilters.skillPreference);
       setSelectedLanguages(initialFilters.selectedLanguages);
-      setAgeRange(initialFilters.ageRange);
-      setBehaviourScore(initialFilters.behaviourScore);
-      setPlayerPreferences(initialFilters.playerPreferences);
-      setExtraFilters(initialFilters.extraFilters);
+      setScheduledTime(initialFilters.scheduledTime || '');
       setGroupSize(initialFilters.groupSize);
     } else {
       setMode('casual');
       setRegions(['ANY']);
-      setSelectedLanguages(['English']);
-      setAgeRange({ min: 18, max: 32 });
-      setBehaviourScore(behaviourScoreOptions[0]);
-      setPlayerPreferences([]);
-      setExtraFilters([]);
+      setRegionPreference('preferred');
+      setLanguagePreference('any');
+      setSkillPreference('similar');
+      setSelectedLanguages(['en']);
+      setScheduledTime('');
       setGroupSize({ min: 1, max: 5 });
     }
     setLockedProfile(null);
@@ -519,31 +533,32 @@ const MatchmakingPage = () => {
 
   const previewChips = useMemo(() => {
     const chips = [];
-    playerPreferenceOptions.forEach((option) => {
-      if (playerPreferences.includes(option.id)) {
-        chips.push(option.label);
-      }
-    });
     chips.push(`${getModeLabel(mode)} mode`);
-    chips.push(`Age ${ageRange.min}-${ageRange.max}`);
-    if (selectedLanguages.length > 0) {
-      const [firstLanguage, ...restLanguages] = selectedLanguages;
-      chips.push(
-        restLanguages.length > 0 ? `${firstLanguage} +${restLanguages.length}` : firstLanguage
-      );
-    }
-    chips.push(`Group ${groupSize.min}-${groupSize.max}`);
-    chips.push(`Behaviour ${behaviourScore}`);
+    chips.push(`Region preference: ${getOptionLabel(regionPreferenceOptions, regionPreference)}`);
     if (regions.includes('ANY')) {
       chips.push('Any region');
     } else if (regions.length > 0) {
       chips.push(`Regions ${regions.join(', ')}`);
     }
-    extraFilters.forEach((filterId) => {
-      chips.push(findLabel(extraFilterOptions, filterId));
-    });
+    chips.push(`Skill: ${getOptionLabel(skillPreferenceOptions, skillPreference)}`);
+    if (selectedLanguages.length > 0) {
+      const displayLabels = selectedLanguages.map((language) => getLanguageLabel(language));
+      const [first, ...rest] = displayLabels;
+      chips.push(rest.length > 0 ? `${first} +${rest.length}` : first);
+    }
+    chips.push(
+      `Language preference: ${getOptionLabel(languagePreferenceOptions, languagePreference)}`
+    );
+    chips.push(`Group ${groupSize.min}-${groupSize.max}`);
+    if (scheduledTime) {
+      const formatted = new Date(scheduledTime).toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+      chips.push(`Scheduled: ${formatted}`);
+    }
     return chips;
-  }, [playerPreferences, mode, ageRange, selectedLanguages, groupSize, behaviourScore, regions, extraFilters]);
+  }, [mode, regionPreference, regions, skillPreference, selectedLanguages, languagePreference, groupSize, scheduledTime]);
 
   const renderStatusCard = () => (
     <div className={`matchmaking-status-card ${hasActiveRequest ? 'matchmaking-status-card--active' : ''}`}>
@@ -684,46 +699,18 @@ const MatchmakingPage = () => {
       <div className="filters-grid">
         <div className="filter-card">
           <div className="filter-card__heading">
-            <h3>Player preferences</h3>
-            <span>Dial in who you want to queue with.</span>
-          </div>
-          <div className="age-range">
-            <div className="age-range__labels">
-              <span>{ageRange.min}</span>
-              <span>{ageRange.max}</span>
-            </div>
-            <div className="age-range__slider">
-              <input
-                type="range"
-                min={AGE_MIN}
-                max={Math.max(AGE_MIN, ageRange.max - 1)}
-                value={ageRange.min}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setAgeRange((prev) => ({ min: Math.min(value, prev.max - 1), max: prev.max }));
-                }}
-              />
-              <input
-                type="range"
-                min={Math.min(AGE_MAX, ageRange.min + 1)}
-                max={AGE_MAX}
-                value={ageRange.max}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setAgeRange((prev) => ({ min: prev.min, max: Math.max(value, prev.min + 1) }));
-                }}
-              />
-            </div>
+            <h3>Regions</h3>
+            <span>Tell us where you're comfortable playing.</span>
           </div>
           <div className="chip-row">
-            {playerPreferenceOptions.map((option) => {
-              const active = playerPreferences.includes(option.id);
+            {regionPreferenceOptions.map((option) => {
+              const active = regionPreference === option.value;
               return (
                 <button
                   type="button"
-                  key={option.id}
+                  key={option.value}
                   className={`chip ${active ? 'chip--active' : ''}`}
-                  onClick={() => togglePreference(option.id)}
+                  onClick={() => setRegionPreference(option.value)}
                 >
                   {option.label}
                 </button>
@@ -745,6 +732,13 @@ const MatchmakingPage = () => {
               );
             })}
           </div>
+        </div>
+
+        <div className="filter-card">
+          <div className="filter-card__heading">
+            <h3>Game mode & skill</h3>
+            <span>Pick your queue style and skill flexibility.</span>
+          </div>
           <div className="filter-card__field">
             <label htmlFor="matchmaking-mode">Game mode</label>
             <select
@@ -758,6 +752,21 @@ const MatchmakingPage = () => {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="chip-row">
+            {skillPreferenceOptions.map((option) => {
+              const active = skillPreference === option.value;
+              return (
+                <button
+                  type="button"
+                  key={option.value}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => setSkillPreference(option.value)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
           <div className="filter-card__field">
             <label>Group size</label>
@@ -788,68 +797,55 @@ const MatchmakingPage = () => {
         <div className="filter-card">
           <div className="filter-card__heading">
             <h3>Languages</h3>
-            <span>Pick up to five languages.</span>
-          </div>
-          <div className="chip-row chip-row--wrap">
-            {languageOptions.map((language) => {
-              const active = selectedLanguages.includes(language);
-              const disable = active && selectedLanguages.length === 1;
-              return (
-                <button
-                  type="button"
-                  key={language}
-                  className={`chip ${active ? 'chip--active' : ''}`}
-                  onClick={() => (!disable ? toggleLanguage(language) : undefined)}
-                  disabled={disable}
-                >
-                  {language}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="filter-card">
-          <div className="filter-card__heading">
-            <h3>Behaviour score</h3>
-            <span>Keep things friendly.</span>
+            <span>Pick up to ten languages.</span>
           </div>
           <div className="chip-row">
-            {behaviourScoreOptions.map((score) => {
-              const active = behaviourScore === score;
+            {languagePreferenceOptions.map((option) => {
+              const active = languagePreference === option.value;
               return (
                 <button
                   type="button"
-                  key={score}
+                  key={option.value}
                   className={`chip ${active ? 'chip--active' : ''}`}
-                  onClick={() => setBehaviourScore(score)}
-                >
-                  {score}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="filter-card">
-          <div className="filter-card__heading">
-            <h3>Extra filters</h3>
-            <span>Fine-tune your vibe.</span>
-          </div>
-          <div className="chip-row chip-row--wrap">
-            {extraFilterOptions.map((option) => {
-              const active = extraFilters.includes(option.id);
-              return (
-                <button
-                  type="button"
-                  key={option.id}
-                  className={`chip ${active ? 'chip--active' : ''}`}
-                  onClick={() => toggleExtraFilter(option.id)}
+                  onClick={() => setLanguagePreference(option.value)}
                 >
                   {option.label}
                 </button>
               );
             })}
+          </div>
+          <div className="chip-row chip-row--wrap">
+            {languageOptions.map((language) => {
+              const active = selectedLanguages.includes(language.value);
+              const disable = active && selectedLanguages.length === 1;
+              return (
+                <button
+                  type="button"
+                  key={language.value}
+                  className={`chip ${active ? 'chip--active' : ''}`}
+                  onClick={() => (!disable ? toggleLanguage(language.value) : undefined)}
+                  disabled={disable}
+                >
+                  {language.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="filter-card">
+          <div className="filter-card__heading">
+            <h3>Schedule</h3>
+            <span>Queue now or set a future time.</span>
+          </div>
+          <div className="filter-card__field">
+            <label htmlFor="matchmaking-schedule">Scheduled time (optional)</label>
+            <input
+              type="datetime-local"
+              id="matchmaking-schedule"
+              value={scheduledTime}
+              onChange={(event) => setScheduledTime(event.target.value)}
+            />
           </div>
         </div>
       </div>
