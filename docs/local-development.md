@@ -36,7 +36,13 @@ When `npm run dev` is running, the API listens on `http://localhost:3000` and th
 - The backend currently runs directly from source, so there is no separate build artefact. Add a `build:backend` script in the future if one becomes necessary.
 
 ## Running with Docker
-`docker-compose up --build` still launches only the backend service. The compose file now calls `npm run dev:backend` internally so that you can keep using compose independent of the new full-stack script.
+Docker Compose now provisions MongoDB, Redis, and an application container so you can mirror the full stack locally or in a cloud runner.
+
+- `docker compose up --build` starts the API along with MongoDB and Redis. Health checks ensure the dependencies are ready before the backend boots.
+- `docker compose run --rm app npm test` executes the test suite inside the already-built backend container.
+- `npm run docker:test` provides an end-to-end option that spins up throwaway containers for MongoDB, Redis, and the backend test runner in one command. Under the hood it uses the Compose `test` profile so other services on your machine are unaffected.
+
+The containers respect the values from `.env`, but Compose overrides the MongoDB and Redis hosts so that the backend always targets the in-network services (`mongodb` and `redis`).
 
 
 ## Logging controls

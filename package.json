@@ -24,6 +24,7 @@
     "dev:backend": "nodemon src/server.js",
     "dev:frontend": "npm --prefix frontend run dev",
     "test:backend": "cross-env NODE_ENV=test mocha --require test/setup.js --recursive test --timeout 10000 --exit",
+    "docker:test": "docker compose --profile test up --build --abort-on-container-exit tests",
     "lint:backend": "eslint src/**/*.js",
     "lint:frontend": "npm --prefix frontend run lint",
     "build:frontend": "npm --prefix frontend run build",

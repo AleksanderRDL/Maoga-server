@@ -9,6 +9,9 @@ services:
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongodb:27017/maoga_dev
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     env_file:
       - .env
     volumes:
@@ -17,7 +20,10 @@ services:
       - ./logs:/usr/src/app/logs
       - /usr/src/app/node_modules
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - maoga-network
     command: npm run dev:backend
@@ -34,10 +40,55 @@ services:
       - MONGO_INITDB_DATABASE=maoga_dev
     networks:
       - maoga-network
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --host localhost --port 27017 --eval 'db.adminCommand({ ping: 1 })'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: maoga-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - maoga-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  tests:
+    build: .
+    container_name: maoga-backend-tests
+    environment:
+      - NODE_ENV=test
+      - MONGODB_URI=mongodb://mongodb:27017/maoga_test
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    env_file:
+      - .env
+    command: npm test
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - maoga-network
+    profiles:
+      - test
 
 volumes:
   mongodb-data:
   mongodb-config:
+  redis-data:
 
 networks:
   maoga-network:
