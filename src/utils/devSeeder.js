@@ -4,6 +4,9 @@ const User = require('../modules/auth/models/User');
 const Game = require('../modules/game/models/Game');
 const Lobby = require('../modules/lobby/models/Lobby');
 const MatchRequest = require('../modules/matchmaking/models/MatchRequest');
+const Friendship = require('../modules/social/models/Friendship');
+const Notification = require('../modules/notification/models/Notification');
+const Chat = require('../modules/chat/models/Chat');
 
 const logger = baseLogger.forModule('dev:seeder');
 
@@ -235,7 +238,7 @@ const GAME_SEEDS = [
 
 const USER_SEEDS = [
   {
-    email: 'brimstone@maoga.test',
+    email: 'brimstone@maoga.dev',
     username: 'brimstone',
     password: 'PlayTogether123!',
     role: 'user',
@@ -287,7 +290,7 @@ const USER_SEEDS = [
     lastActive: minutesAgo(6)
   },
   {
-    email: 'aurora@maoga.test',
+    email: 'aurora@maoga.dev',
     username: 'aurora',
     password: 'PlayTogether123!',
     role: 'user',
@@ -338,7 +341,7 @@ const USER_SEEDS = [
     lastActive: minutesAgo(12)
   },
   {
-    email: 'viper@maoga.test',
+    email: 'viper@maoga.dev',
     username: 'viper',
     password: 'PlayTogether123!',
     role: 'user',
@@ -389,7 +392,7 @@ const USER_SEEDS = [
     lastActive: minutesAgo(4)
   },
   {
-    email: 'pixelwave@maoga.test',
+    email: 'pixelwave@maoga.dev',
     username: 'pixelwave',
     password: 'PlayTogether123!',
     role: 'user',
@@ -440,7 +443,7 @@ const USER_SEEDS = [
     lastActive: minutesAgo(9)
   },
   {
-    email: 'supportive@maoga.test',
+    email: 'supportive@maoga.dev',
     username: 'supportive',
     password: 'PlayTogether123!',
     role: 'user',
@@ -490,7 +493,7 @@ const USER_SEEDS = [
     lastActive: minutesAgo(14)
   },
   {
-    email: 'shotcaller@maoga.test',
+    email: 'shotcaller@maoga.dev',
     username: 'shotcaller',
     password: 'PlayTogether123!',
     role: 'user',
@@ -764,6 +767,183 @@ const MATCH_REQUEST_SEEDS = [
   }
 ];
 
+const FRIENDSHIP_SEEDS = [
+  {
+    users: ['brimstone', 'viper'],
+    status: 'accepted',
+    requestedBy: 'viper',
+    acceptedMinutesAgo: 180
+  },
+  {
+    users: ['pixelwave', 'supportive'],
+    status: 'accepted',
+    requestedBy: 'supportive',
+    acceptedMinutesAgo: 260
+  },
+  {
+    users: ['aurora', 'supportive'],
+    status: 'pending',
+    requestedBy: 'supportive',
+    createdMinutesAgo: 45
+  },
+  {
+    users: ['shotcaller', 'viper'],
+    status: 'accepted',
+    requestedBy: 'shotcaller',
+    acceptedMinutesAgo: 90
+  },
+  {
+    users: ['brimstone', 'aurora'],
+    status: 'declined',
+    requestedBy: 'aurora',
+    declinedMinutesAgo: 25
+  }
+];
+
+const NOTIFICATION_SEEDS = [
+  {
+    username: 'brimstone',
+    type: 'friend_request',
+    title: 'Aurora sent you a friend request',
+    message: "Aurora would like to coordinate for tonight's ranked session.",
+    status: 'unread',
+    createdMinutesAgo: 12,
+    deliveryChannels: ['inApp', 'push'],
+    data: {
+      entityType: 'user',
+      username: 'aurora',
+      metadata: {
+        mutualGames: 2,
+        lastPlayedMinutesAgo: 90
+      }
+    }
+  },
+  {
+    username: 'supportive',
+    type: 'lobby_invite',
+    title: 'Lobby invite: Valorant Night Ranked',
+    message: 'Brimstone invited you to join the Valorant Night Ranked lobby.',
+    status: 'unread',
+    createdMinutesAgo: 28,
+    deliveryChannels: ['inApp'],
+    lobbyName: 'Valorant Night Ranked',
+    data: {
+      entityType: 'lobby'
+    }
+  },
+  {
+    username: 'pixelwave',
+    type: 'lobby_ready',
+    title: 'Your Valorant lobby is ready',
+    message: 'All players marked ready in Valorant Night Ranked.',
+    status: 'read',
+    createdMinutesAgo: 35,
+    readMinutesAgo: 30,
+    priority: 'high',
+    lobbyName: 'Valorant Night Ranked',
+    deliveryChannels: ['inApp', 'push']
+  },
+  {
+    username: 'aurora',
+    type: 'friend_accepted',
+    title: 'Supportive accepted your friend request',
+    message: 'You can now share schedules and queue together.',
+    status: 'unread',
+    createdMinutesAgo: 18,
+    deliveryChannels: ['inApp', 'email'],
+    data: {
+      entityType: 'user',
+      username: 'supportive'
+    }
+  },
+  {
+    username: 'shotcaller',
+    type: 'system_announcement',
+    title: 'Ranked matchmaking maintenance',
+    message: 'Ranked queues will pause for 30 minutes at 23:00 in your region.',
+    status: 'unread',
+    createdMinutesAgo: 55,
+    expiresMinutesFromNow: 240,
+    deliveryChannels: ['inApp'],
+    priority: 'medium'
+  }
+];
+
+const CHAT_SEEDS = [
+  {
+    chatType: 'lobby',
+    lobbyName: 'Valorant Night Ranked',
+    participants: ['brimstone', 'viper', 'pixelwave', 'supportive'],
+    messages: [
+      {
+        sender: 'brimstone',
+        content: "Thanks for hopping in tonight—let's warm up with a couple of rounds.",
+        minutesAgo: 18
+      },
+      {
+        sender: 'supportive',
+        content: 'Invited Aurora as backup if we need a flex support.',
+        minutesAgo: 17
+      },
+      {
+        content: 'PixelWave joined the lobby.',
+        contentType: 'system',
+        minutesAgo: 16
+      },
+      {
+        sender: 'pixelwave',
+        content: 'Ready to lock support—calls and heals on point.',
+        minutesAgo: 15
+      },
+      {
+        sender: 'viper',
+        content: "Queueing up now. Let's dominate.",
+        minutesAgo: 14
+      }
+    ]
+  },
+  {
+    chatType: 'direct',
+    participants: ['aurora', 'supportive'],
+    messages: [
+      {
+        sender: 'supportive',
+        content: 'Want to duo after scrims tonight?',
+        minutesAgo: 42
+      },
+      {
+        sender: 'aurora',
+        content: 'Yes! I can be on around 21:00 CET.',
+        minutesAgo: 40
+      }
+    ]
+  },
+  {
+    chatType: 'group',
+    participants: ['brimstone', 'shotcaller', 'viper'],
+    metadata: {
+      name: 'Scrim Planning'
+    },
+    messages: [
+      {
+        sender: 'shotcaller',
+        content: 'Scrim tomorrow at 20:00? Need confirmations.',
+        minutesAgo: 120
+      },
+      {
+        sender: 'brimstone',
+        content: "Works for me. Let's review the split push VOD beforehand.",
+        minutesAgo: 118
+      },
+      {
+        sender: 'viper',
+        content: "I'm in. I'll bring updated executes for Icebox.",
+        minutesAgo: 116
+      }
+    ]
+  }
+];
+
 function shouldRunSeeder() {
   if (process.env.SKIP_DEV_SEED === 'true') {
     logger.info('Skipping dev data seed because SKIP_DEV_SEED flag is set');
@@ -794,6 +974,14 @@ function ensureUser(userMap, username) {
     throw new Error(`Missing seeded user for username "${username}"`);
   }
   return user;
+}
+
+function ensureLobby(lobbyMap, lobbyName) {
+  const lobby = lobbyMap.get(lobbyName);
+  if (!lobby) {
+    throw new Error(`Missing seeded lobby for name "${lobbyName}"`);
+  }
+  return lobby;
 }
 
 async function seedGames() {
@@ -1046,6 +1234,261 @@ async function seedMatchRequests(userMap, gameMap, lobbyMap) {
   logger.info('Seeded dev match requests', { count: matchRequests.length });
 }
 
+async function seedFriendships(userMap) {
+  let count = 0;
+
+  for (const seed of FRIENDSHIP_SEEDS) {
+    const [userA, userB] = seed.users.map((username) => ensureUser(userMap, username));
+    const requestedBy = ensureUser(userMap, seed.requestedBy);
+
+    let friendship = await Friendship.findOne({
+      $or: [
+        { user1Id: userA._id, user2Id: userB._id },
+        { user1Id: userB._id, user2Id: userA._id }
+      ]
+    });
+
+    if (!friendship) {
+      friendship = new Friendship({
+        user1Id: userA._id,
+        user2Id: userB._id,
+        status: seed.status,
+        requestedBy: requestedBy._id
+      });
+    } else {
+      friendship.set({
+        user1Id: userA._id,
+        user2Id: userB._id,
+        status: seed.status,
+        requestedBy: requestedBy._id
+      });
+    }
+
+    if (seed.blockedBy) {
+      friendship.blockedBy = ensureUser(userMap, seed.blockedBy)._id;
+    } else {
+      friendship.blockedBy = undefined;
+    }
+
+    if (typeof seed.acceptedMinutesAgo === 'number') {
+      friendship.acceptedAt = minutesAgo(seed.acceptedMinutesAgo);
+    } else if (seed.acceptedAt) {
+      friendship.acceptedAt = seed.acceptedAt;
+    } else if (friendship.status !== 'accepted') {
+      friendship.acceptedAt = undefined;
+    }
+
+    if (typeof seed.declinedMinutesAgo === 'number') {
+      friendship.declinedAt = minutesAgo(seed.declinedMinutesAgo);
+    } else if (seed.declinedAt) {
+      friendship.declinedAt = seed.declinedAt;
+    } else if (friendship.status !== 'declined') {
+      friendship.declinedAt = undefined;
+    }
+
+    if (typeof seed.blockedMinutesAgo === 'number') {
+      friendship.blockedAt = minutesAgo(seed.blockedMinutesAgo);
+    } else if (seed.blockedAt) {
+      friendship.blockedAt = seed.blockedAt;
+    } else if (friendship.status !== 'blocked') {
+      friendship.blockedAt = undefined;
+    }
+
+    await friendship.save();
+    count += 1;
+  }
+
+  logger.info('Seeded dev friendships', { count });
+}
+
+function buildNotificationData(seed, userMap, lobbyMap) {
+  if (!seed.data && !seed.lobbyName) {
+    return undefined;
+  }
+
+  const data = {};
+
+  if (seed.data?.entityType === 'user') {
+    const targetUser = ensureUser(userMap, seed.data.username || seed.data.user || seed.data.targetUsername);
+    data.entityType = 'user';
+    data.entityId = targetUser._id;
+  } else if (seed.data?.entityType === 'lobby' || seed.lobbyName) {
+    const lobbyName = seed.lobbyName || seed.data?.lobbyName;
+    const lobby = ensureLobby(lobbyMap, lobbyName);
+    data.entityType = 'lobby';
+    data.entityId = lobby._id;
+  } else if (seed.data?.entityType) {
+    data.entityType = seed.data.entityType;
+    if (seed.data.entityId) {
+      data.entityId = seed.data.entityId;
+    }
+  }
+
+  if (seed.data?.actionUrl) {
+    data.actionUrl = seed.data.actionUrl;
+  }
+
+  if (seed.data?.metadata) {
+    data.metadata = new Map(Object.entries(seed.data.metadata));
+  }
+
+  return Object.keys(data).length > 0 ? data : undefined;
+}
+
+async function seedNotifications(userMap, lobbyMap) {
+  let count = 0;
+
+  for (const seed of NOTIFICATION_SEEDS) {
+    const user = ensureUser(userMap, seed.username);
+    const data = buildNotificationData(seed, userMap, lobbyMap);
+
+    let notification = await Notification.findOne({
+      userId: user._id,
+      type: seed.type,
+      title: seed.title
+    });
+
+    const payload = {
+      userId: user._id,
+      type: seed.type,
+      title: seed.title,
+      message: seed.message,
+      status: seed.status || 'unread',
+      priority: seed.priority || 'medium'
+    };
+
+    if (!notification) {
+      notification = new Notification(payload);
+    } else {
+      notification.set(payload);
+    }
+
+    const deliveryChannels = seed.deliveryChannels?.length ? seed.deliveryChannels : ['inApp'];
+    notification.set('deliveryChannels', deliveryChannels);
+
+    if (data) {
+      notification.set('data', data);
+    } else {
+      notification.set('data', undefined);
+    }
+    notification.markModified('data');
+
+    if (typeof seed.readMinutesAgo === 'number') {
+      notification.status = 'read';
+      notification.readAt = minutesAgo(seed.readMinutesAgo);
+    } else if (notification.status === 'read' && !notification.readAt) {
+      notification.readAt = new Date();
+    } else if (notification.status !== 'read') {
+      notification.readAt = undefined;
+    }
+
+    if (typeof seed.expiresMinutesFromNow === 'number') {
+      notification.expiresAt = minutesFromNow(seed.expiresMinutesFromNow);
+    } else if (typeof seed.expiresMinutesAgo === 'number') {
+      notification.expiresAt = minutesAgo(seed.expiresMinutesAgo);
+    } else {
+      notification.expiresAt = undefined;
+    }
+
+    await notification.save();
+    count += 1;
+  }
+
+  logger.info('Seeded dev notifications', { count });
+}
+
+async function seedChats(userMap, lobbyMap) {
+  const chats = [];
+
+  for (const seed of CHAT_SEEDS) {
+    const participantDocs = seed.participants.map((username) => ensureUser(userMap, username));
+    const participantIds = participantDocs
+      .map((doc) => doc._id)
+      .sort((a, b) => a.toString().localeCompare(b.toString()));
+
+    let chat;
+    let lobby;
+
+    if (seed.chatType === 'lobby') {
+      lobby = ensureLobby(lobbyMap, seed.lobbyName);
+      chat = await Chat.findOne({ chatType: 'lobby', lobbyId: lobby._id });
+      if (!chat) {
+        chat = new Chat({ chatType: 'lobby', lobbyId: lobby._id, participants: participantIds });
+      } else {
+        chat.set({ chatType: 'lobby', lobbyId: lobby._id, participants: participantIds });
+      }
+    } else {
+      chat = await Chat.findOne({
+        chatType: seed.chatType,
+        participants: { $all: participantIds }
+      });
+
+      if (chat && chat.participants.length !== participantIds.length) {
+        chat = null;
+      }
+
+      if (!chat) {
+        chat = new Chat({ chatType: seed.chatType, participants: participantIds });
+      } else {
+        chat.set({ chatType: seed.chatType, participants: participantIds, lobbyId: undefined });
+      }
+    }
+
+    if (seed.metadata) {
+      chat.metadata = new Map(Object.entries(seed.metadata));
+      chat.markModified('metadata');
+    } else if (chat.metadata && chat.metadata.size > 0) {
+      chat.metadata = undefined;
+      chat.markModified('metadata');
+    }
+
+    const messages = seed.messages.map((message) => {
+      const createdAt =
+        typeof message.minutesAgo === 'number'
+          ? minutesAgo(message.minutesAgo)
+          : message.createdAt || new Date();
+
+      const contentType = message.contentType || 'text';
+      const payload = {
+        content: message.content,
+        contentType,
+        createdAt
+      };
+
+      if (message.metadata) {
+        payload.metadata = new Map(Object.entries(message.metadata));
+      }
+
+      if (contentType !== 'system' && contentType !== 'auto') {
+        if (!message.sender) {
+          throw new Error('Chat seed missing sender for non-system message');
+        }
+        const senderDoc = ensureUser(userMap, message.sender);
+        payload.senderId = senderDoc._id;
+      }
+
+      return payload;
+    });
+
+    chat.set('messages', messages);
+    chat.markModified('messages');
+    chat.lastMessageAt = messages.length ? messages[messages.length - 1].createdAt : undefined;
+
+    await chat.save();
+    chats.push(chat);
+
+    if (seed.chatType === 'lobby' && lobby) {
+      if (!lobby.chatId || lobby.chatId.toString() !== chat._id.toString()) {
+        lobby.chatId = chat._id;
+        await lobby.save();
+        lobbyMap.set(seed.lobbyName, lobby);
+      }
+    }
+  }
+
+  logger.info('Seeded dev chats', { count: chats.length });
+}
+
 async function seedDevData() {
   if (hasSeeded) {
     return;
@@ -1062,6 +1505,9 @@ async function seedDevData() {
     const users = await seedUsers(games);
     const lobbies = await seedLobbies(users, games);
     await seedMatchRequests(users, games, lobbies);
+    await seedFriendships(users);
+    await seedNotifications(users, lobbies);
+    await seedChats(users, lobbies);
     logger.info('Baseline development data ready');
   } catch (error) {
     logger.error('Dev data seeding failed', { error: error.message, stack: error.stack });
