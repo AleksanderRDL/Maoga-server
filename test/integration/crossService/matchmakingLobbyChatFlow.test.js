@@ -121,9 +121,7 @@ describe('Matchmaking, Lobby, and Chat integration flow', function () {
     expect(flowResult.chat, 'lobby chat should be created').to.exist;
     expect(flowResult.chat.chatType).to.equal('lobby');
     expect(flowResult.chat.lobbyId.toString()).to.equal(flowResult.lobby._id.toString());
-    expect(flowResult.chat.participants.map(String)).to.have.members(
-      users.map((user) => user.id)
-    );
+    expect(flowResult.chat.participants.map(String)).to.have.members(users.map((user) => user.id));
 
     const matchedRequests = await MatchRequest.find({
       _id: { $in: flowResult.matchHistory.participants.map((p) => p.requestId) }
